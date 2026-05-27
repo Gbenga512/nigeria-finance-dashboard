@@ -214,31 +214,45 @@ if page == "Dashboard":
     # ============================
     # USD/NGN CHART
     # ============================
-    st.subheader("📈 USD/NGN Trend")
+# ============================
+# USD/NGN CHART
+# ============================
+st.subheader("📈 USD/NGN Trend")
 
-    if not usdngn_close.empty:
+if not usdngn_close.empty:
 
-        fig = go.Figure()
+    chart_df = pd.DataFrame({
+        "Date": pd.to_datetime(usdngn_close.index),
+        "Price": usdngn_close.values
+    })
 
-        fig.add_trace(
-            go.Scatter(
-                x=usdngn_close.index,
-                y=usdngn_close.values,
-                mode="lines",
-                name="USD/NGN"
-            )
+    chart_df = chart_df.dropna()
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=chart_df["Date"],
+            y=chart_df["Price"],
+            mode="lines",
+            name="USD/NGN"
         )
+    )
 
-        fig.update_layout(
-            template="plotly_dark",
-            height=500
-        )
+    fig.update_layout(
+        template="plotly_dark",
+        height=500,
+        xaxis_title="Date",
+        yaxis_title="Exchange Rate"
+    )
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
+else:
+    st.warning("No USD/NGN data available.")
 # ============================================
 # MARKETS PAGE
 # ============================================
