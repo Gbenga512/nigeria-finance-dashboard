@@ -173,3 +173,12 @@ st.table(risk_data)
 st.markdown("---")
 
 st.caption("NG Finance Pro • Nigerian Financial Intelligence Platform")
+import pandas as pd
+import numpy as np
+
+chart_data = pd.DataFrame(
+    np.random.randn(20, 3),
+    columns=["USD/NGN", "BTC", "Gold"]
+)
+
+st.line_chart(chart_data)
