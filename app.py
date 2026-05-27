@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
@@ -31,90 +32,102 @@ st.sidebar.success("Market Feed Active")
 # LIVE TIME
 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# DOWNLOAD REAL DATA
-usdngn = yf.download("NGN=X", period="1d", interval="1m")
-btc = yf.download("BTC-USD", period="1d", interval="1m")
-gold = yf.download("GC=F", period="1d", interval="1m")
+# DOWNLOAD REAL MARKET DATA
+usdngn = yf.download("NGN=X", period="5d", interval="1d")
+btc = yf.download("BTC-USD", period="5d", interval="1d")
+gold = yf.download("GC=F", period="5d", interval="1d")
 
-# CURRENT PRICES
-usdngn_price = round(float(usdngn["Close"].dropna().iloc[-1]), 2)
-btc_price = round(float(btc["Close"].dropna().iloc[-1]), 2)
-gold_price = round(float(gold["Close"].dropna().iloc[-1]), 2)
+# SAFE PRICE EXTRACTION
+usdngn_price = round(usdngn["Close"].dropna().values[-1].item(), 2)
+btc_price = round(btc["Close"].dropna().values[-1].item(), 2)
+gold_price = round(gold["Close"].dropna().values[-1].item(), 2)
 
-# DASHBOARD
+# DASHBOARD PAGE
 if page == "Dashboard":
+
+    st.markdown(f"## Live Time: {current_time}")
 
     st.title("📊 NG Finance Pro Dashboard")
     st.subheader("Real-Time Nigerian Financial Intelligence Platform")
 
-    st.write(f"### Live Time: {current_time}")
-
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("USD/NGN", usdngn_price, "+0.95")
+        st.metric(
+            label="USD/NGN",
+            value=usdngn_price,
+            delta="+0.95"
+        )
 
     with col2:
-        st.metric("BTC/USD", btc_price, "Crypto")
+        st.metric(
+            label="BTC/USD",
+            value=btc_price,
+            delta="Crypto"
+        )
 
     with col3:
-        st.metric("Gold", gold_price, "Commodity")
+        st.metric(
+            label="Gold",
+            value=gold_price,
+            delta="Commodity"
+        )
 
     st.markdown("---")
 
     st.subheader("🧠 AI Market Insight")
 
-    insight = """
-    Naira pressure remains elevated as FX volatility continues.
-    Bitcoin remains sensitive to global macroeconomic conditions,
-    while gold prices show continued safe-haven demand.
-    """
-
-    st.info(insight)
+    st.info(
+        "Naira pressure remains elevated. FX volatility continues to impact market stability."
+    )
 
     st.markdown("---")
 
-    st.subheader("📈 Real Market Trends")
+    st.subheader("📈 USD/NGN Market Trend")
 
-    # REAL HISTORICAL DATA
-    usdngn_hist = yf.download("NGN=X", period="1mo")
-    btc_hist = yf.download("BTC-USD", period="1mo")
-    gold_hist = yf.download("GC=F", period="1mo")
+    fig = go.Figure()
 
-    chart_data = pd.DataFrame({
-        "USD/NGN": usdngn_hist["Close"],
-        "BTC": btc_hist["Close"],
-        "Gold": gold_hist["Close"]
-    })
+    fig.add_trace(
+        go.Scatter(
+            x=usdngn.index,
+            y=usdngn["Close"],
+            mode="lines+markers",
+            name="USD/NGN"
+        )
+    )
 
-    st.line_chart(chart_data)
+    fig.update_layout(
+        height=500,
+        template="plotly_dark"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 # MARKETS PAGE
 elif page == "Markets":
 
     st.title("📑 Latest Market Data")
 
-    market_table = pd.DataFrame({
-        "Asset": ["USD/NGN", "BTC/USD", "Gold"],
-        "Price": [usdngn_price, btc_price, gold_price]
+    market_df = pd.DataFrame({
+        "USD/NGN": usdngn["Close"],
+        "BTC/USD": btc["Close"],
+        "Gold": gold["Close"]
     })
 
-    st.dataframe(market_table)
+    st.dataframe(market_df)
 
 # AI INSIGHTS PAGE
 elif page == "AI Insights":
 
     st.title("🤖 AI Financial Insights")
 
-    st.success("""
-    AI detects sustained FX instability in the Nigerian market.
-    
-    Oil price fluctuations may continue impacting inflation
-    and government revenue projections.
-    
-    Investors continue monitoring crypto volatility and
-    commodity market resilience.
-    """)
+    st.success(
+        "AI analysis indicates increased FX demand pressure and strong crypto momentum."
+    )
+
+    st.warning(
+        "Oil market volatility may influence Nigerian fiscal performance."
+    )
 
 # RISK MONITOR PAGE
 elif page == "Risk Monitor":
@@ -140,7 +153,7 @@ elif page == "Risk Monitor":
 
     st.table(risk_data)
 
-# NEWS PAGE
+# NEWS TERMINAL PAGE
 elif page == "News Terminal":
 
     st.title("📰 Market News")
