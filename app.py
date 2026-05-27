@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
 import pandas as pd
+from datetime import datetime
 
 # PAGE CONFIG
 st.set_page_config(
@@ -12,7 +13,7 @@ st.set_page_config(
 
 # SIDEBAR
 st.sidebar.title("📈 NG Finance Pro")
-
+st.subheader(f"Live Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 page = st.sidebar.radio(
     "Navigation",
     [
