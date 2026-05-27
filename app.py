@@ -128,16 +128,30 @@ elif page == "Markets":
 
     st.title("📑 Latest Market Data")
 
-    market_df = pd.DataFrame({
-        "USD/NGN": usdngn_close.values,
-        "BTC/USD": btc_close.values,
+    # Create separate dataframes
+    usd_df = pd.DataFrame({
+        "Date": usdngn.index,
+        "USD/NGN": usdngn_close.values
+    })
+
+    btc_df = pd.DataFrame({
+        "Date": btc.index,
+        "BTC/USD": btc_close.values
+    })
+
+    gold_df = pd.DataFrame({
+        "Date": gold.index,
         "Gold": gold_close.values
     })
 
-    market_df.index = usdngn.index
+    # Merge all safely
+    market_df = usd_df.merge(btc_df, on="Date", how="outer")
+    market_df = market_df.merge(gold_df, on="Date", how="outer")
+
+    # Sort dates
+    market_df = market_df.sort_values(by="Date")
 
     st.dataframe(market_df)
-
 # =========================
 # AI INSIGHTS PAGE
 # =========================
