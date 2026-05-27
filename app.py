@@ -3,23 +3,34 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
-# =========================
+# ============================================
 # PAGE CONFIG
-# =========================
+# ============================================
 st.set_page_config(
     page_title="NG Finance Pro",
     page_icon="📈",
     layout="wide"
 )
 
-# =========================
+# ============================================
+# AUTO REFRESH EVERY 60 SECONDS
+# ============================================
+st_autorefresh(interval=60000, key="marketrefresh")
+
+# ============================================
 # HELPERS
-# =========================
+# ============================================
 @st.cache_data(ttl=300)
 def fetch_data(symbol):
+
     try:
-        df = yf.download(symbol, period="30d", progress=False)
+        df = yf.download(
+            symbol,
+            period="30d",
+            progress=False
+        )
 
         if df.empty:
             return pd.DataFrame()
@@ -31,32 +42,38 @@ def fetch_data(symbol):
 
 
 def get_close(df):
+
     try:
-        return df["Close"].dropna()
+        return pd.Series(df["Close"].squeeze()).dropna()
+
     except:
         return pd.Series(dtype=float)
 
 
 def latest_price(series):
+
     try:
         return round(float(series.iloc[-1]), 2)
+
     except:
         return None
 
 
 def pct_change(series):
+
     try:
         return round(
             ((series.iloc[-1] - series.iloc[-2]) / series.iloc[-2]) * 100,
             2
         )
+
     except:
         return None
 
 
-# =========================
+# ============================================
 # SIDEBAR
-# =========================
+# ============================================
 st.sidebar.title("📈 NG Finance Pro")
 
 page = st.sidebar.radio(
@@ -71,28 +88,42 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.success("Market Feed Active")
+st.sidebar.success("🟢 Market Feed Active")
 
-# =========================
+st.sidebar.write(
+    f"Last Refresh: {datetime.now().strftime('%H:%M:%S')}"
+)
+
+# ============================================
 # FETCH MARKET DATA
-# =========================
+# ============================================
 usdngn = fetch_data("NGN=X")
 btc = fetch_data("BTC-USD")
+eth = fetch_data("ETH-USD")
 gold = fetch_data("GC=F")
+oil = fetch_data("CL=F")
 
 usdngn_close = get_close(usdngn)
 btc_close = get_close(btc)
+eth_close = get_close(eth)
 gold_close = get_close(gold)
+oil_close = get_close(oil)
 
-# =========================
-# DASHBOARD
-# =========================
+# ============================================
+# DASHBOARD PAGE
+# ============================================
 if page == "Dashboard":
 
     st.title("📊 NG Finance Pro Dashboard")
-    st.subheader("Real-Time Nigerian Financial Intelligence Platform")
 
-    col1, col2, col3 = st.columns(3)
+    st.subheader(
+        "Real-Time Nigerian Financial Intelligence Platform"
+    )
+
+    # ============================
+    # METRICS
+    # ============================
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric(
@@ -110,23 +141,80 @@ if page == "Dashboard":
 
     with col3:
         st.metric(
+            "ETH/USD",
+            latest_price(eth_close),
+            f"{pct_change(eth_close)}%"
+        )
+
+    with col4:
+        st.metric(
             "Gold",
             latest_price(gold_close),
             f"{pct_change(gold_close)}%"
         )
 
+    with col5:
+        st.metric(
+            "Crude Oil",
+            latest_price(oil_close),
+            f"{pct_change(oil_close)}%"
+        )
+
     st.markdown("---")
 
-    st.subheader("🧠 AI Market Insight")
+    # ============================
+    # WATCHLIST
+    # ============================
+    st.markdown("## 📌 Market Watchlist")
 
-    st.info(
-        "Naira pressure remains elevated. "
-        "FX volatility continues to impact market stability."
+    watchlist = pd.DataFrame({
+        "Asset": [
+            "USD/NGN",
+            "BTC/USD",
+            "ETH/USD",
+            "Gold",
+            "Crude Oil"
+        ],
+        "Price": [
+            latest_price(usdngn_close),
+            latest_price(btc_close),
+            latest_price(eth_close),
+            latest_price(gold_close),
+            latest_price(oil_close)
+        ],
+        "Change %": [
+            pct_change(usdngn_close),
+            pct_change(btc_close),
+            pct_change(eth_close),
+            pct_change(gold_close),
+            pct_change(oil_close)
+        ]
+    })
+
+    st.dataframe(
+        watchlist,
+        use_container_width=True
     )
 
     st.markdown("---")
 
-    st.subheader("📉 USD/NGN Market Trend")
+    # ============================
+    # AI INSIGHT
+    # ============================
+    st.subheader("🧠 AI Market Insight")
+
+    st.info(
+        "Naira volatility remains elevated amid continued FX demand pressure. "
+        "Bitcoin momentum remains positive while oil market uncertainty "
+        "continues to influence inflation expectations."
+    )
+
+    st.markdown("---")
+
+    # ============================
+    # USD/NGN CHART
+    # ============================
+    st.subheader("📈 USD/NGN Trend")
 
     if not usdngn_close.empty:
 
@@ -141,77 +229,109 @@ if page == "Dashboard":
             )
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(
+            template="plotly_dark",
+            height=500
+        )
 
-    else:
-        st.warning("USD/NGN data unavailable.")
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
-# =========================
+# ============================================
 # MARKETS PAGE
-# =========================
-# =========================
-# MARKETS PAGE
-# =========================
+# ============================================
 elif page == "Markets":
 
-    st.title("📑 Latest Market Data")
+    st.title("📑 Markets Overview")
 
-    # SAFE SERIES CONVERSION
-    usd_series = pd.Series(usdngn_close.squeeze())
-    btc_series = pd.Series(btc_close.squeeze())
-    gold_series = pd.Series(gold_close.squeeze())
+    assets = {
+        "USD/NGN": usdngn_close,
+        "BTC/USD": btc_close,
+        "ETH/USD": eth_close,
+        "Gold": gold_close,
+        "Crude Oil": oil_close
+    }
 
-    # CREATE CLEAN DATAFRAMES
-    usd_df = usd_series.reset_index()
-    usd_df.columns = ["Date", "USD/NGN"]
-
-    btc_df = btc_series.reset_index()
-    btc_df.columns = ["Date", "BTC/USD"]
-
-    gold_df = gold_series.reset_index()
-    gold_df.columns = ["Date", "Gold"]
-
-    # SAFE MERGE
-    market_df = pd.merge(
-        usd_df,
-        btc_df,
-        on="Date",
-        how="outer"
+    selected_asset = st.selectbox(
+        "Select Asset",
+        list(assets.keys())
     )
 
-    market_df = pd.merge(
-        market_df,
-        gold_df,
-        on="Date",
-        how="outer"
-    )
+    selected_series = assets[selected_asset]
 
-    # SORT DATES
-    market_df = market_df.sort_values("Date")
+    # ============================
+    # MARKET CHART
+    # ============================
+    if not selected_series.empty:
 
-    st.dataframe(
-        market_df,
-        use_container_width=True
-    )
-# =========================
-# AI INSIGHTS
-# =========================
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=selected_series.index,
+                y=selected_series.values,
+                mode="lines+markers",
+                name=selected_asset
+            )
+        )
+
+        fig.update_layout(
+            template="plotly_dark",
+            height=500
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
+
+        # ============================
+        # STATISTICS
+        # ============================
+        stats_df = pd.DataFrame({
+            "Metric": [
+                "Latest Price",
+                "Highest Price",
+                "Lowest Price",
+                "Average Price"
+            ],
+            "Value": [
+                latest_price(selected_series),
+                round(selected_series.max(), 2),
+                round(selected_series.min(), 2),
+                round(selected_series.mean(), 2)
+            ]
+        })
+
+        st.dataframe(
+            stats_df,
+            use_container_width=True
+        )
+
+# ============================================
+# AI INSIGHTS PAGE
+# ============================================
 elif page == "AI Insights":
 
-    st.title("🧠 AI Financial Insights")
+    st.title("🤖 AI Financial Insights")
 
     st.success(
-        "AI analysis indicates increased FX demand pressure "
-        "and strong crypto momentum."
+        "AI detects continued FX instability within the Nigerian market."
     )
 
-    st.write(
-        "Oil market volatility may influence Nigerian fiscal performance."
+    st.warning(
+        "Oil market volatility may continue influencing inflation."
     )
 
-# =========================
-# RISK MONITOR
-# =========================
+    st.info(
+        "Crypto assets remain highly sensitive to global macroeconomic conditions."
+    )
+
+# ============================================
+# RISK MONITOR PAGE
+# ============================================
 elif page == "Risk Monitor":
 
     st.title("⚠️ Risk Monitor")
@@ -224,8 +344,8 @@ elif page == "Risk Monitor":
             "Crypto Volatility",
             "Interest Rate Risk"
         ],
-        "Status": [
-            "Moderate",
+        "Risk Level": [
+            "High",
             "High",
             "Moderate",
             "High",
@@ -233,11 +353,14 @@ elif page == "Risk Monitor":
         ]
     })
 
-    st.table(risk_data)
+    st.dataframe(
+        risk_data,
+        use_container_width=True
+    )
 
-# =========================
-# NEWS TERMINAL
-# =========================
+# ============================================
+# NEWS PAGE
+# ============================================
 elif page == "News Terminal":
 
     st.title("📰 Market News")
@@ -259,11 +382,14 @@ elif page == "News Terminal":
         ]
     })
 
-    st.table(news_data)
+    st.dataframe(
+        news_data,
+        use_container_width=True
+    )
 
-# =========================
+# ============================================
 # FOOTER
-# =========================
+# ============================================
 st.markdown("---")
 
 st.caption(
