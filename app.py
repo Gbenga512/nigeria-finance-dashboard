@@ -174,12 +174,17 @@ st.table(risk_data)
 st.markdown("---")
 
 st.caption("NG Finance Pro • Nigerian Financial Intelligence Platform")
-import pandas as pd
-import numpy as np
+# REAL MARKET CHARTS
+st.markdown("---")
+st.subheader("📈 Real Market Trends")
 
-chart_data = pd.DataFrame(
-    np.random.randn(20, 3),
-    columns=["USD/NGN", "BTC", "Gold"]
-)
+# USD/NGN CHART
+st.line_chart(usd_close_series)
 
-st.line_chart(chart_data)
+# BTC CHART
+st.subheader("₿ Bitcoin Trend")
+st.line_chart(btc_close_series)
+
+# GOLD CHART
+st.subheader("🥇 Gold Trend")
+st.line_chart(gold_close_series)
