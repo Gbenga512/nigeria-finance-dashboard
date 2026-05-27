@@ -1,6 +1,5 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
@@ -13,7 +12,7 @@ st.set_page_config(
 
 # SIDEBAR
 st.sidebar.title("📈 NG Finance Pro")
-st.subheader(f"Live Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
 page = st.sidebar.radio(
     "Navigation",
     [
@@ -26,165 +25,145 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-
 st.sidebar.subheader("⚡ System Status")
 st.sidebar.success("Market Feed Active")
 
-# TITLE
-st.title("📊 NG Finance Pro Dashboard")
-st.subheader("Real-Time Nigerian Financial Intelligence Platform")
+# LIVE TIME
+current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# DOWNLOAD DATA
-usdngn = yf.download("NGN=X", period="1mo")
-btc = yf.download("BTC-USD", period="1mo")
-gold = yf.download("GC=F", period="1mo")
+# DOWNLOAD REAL DATA
+usdngn = yf.download("NGN=X", period="1d", interval="1m")
+btc = yf.download("BTC-USD", period="1d", interval="1m")
+gold = yf.download("GC=F", period="1d", interval="1m")
 
-# CLEAN DATA
-usd_close_series = usdngn["Close"].squeeze()
-btc_close_series = btc["Close"].squeeze()
-gold_close_series = gold["Close"].squeeze()
+# CURRENT PRICES
+usdngn_price = round(float(usdngn["Close"].dropna().iloc[-1]), 2)
+btc_price = round(float(btc["Close"].dropna().iloc[-1]), 2)
+gold_price = round(float(gold["Close"].dropna().iloc[-1]), 2)
 
-# LATEST VALUES
-usd_close = float(usd_close_series.iloc[-1])
-btc_close = float(btc_close_series.iloc[-1])
-gold_close = float(gold_close_series.iloc[-1])
+# DASHBOARD
+if page == "Dashboard":
 
-# WATCHLIST CARDS
-col1, col2, col3 = st.columns(3)
+    st.title("📊 NG Finance Pro Dashboard")
+    st.subheader("Real-Time Nigerian Financial Intelligence Platform")
 
-with col1:
-    st.metric(
-        "USD/NGN",
-        f"{usd_close:.2f}",
-        "+0.95"
-    )
+    st.write(f"### Live Time: {current_time}")
 
-with col2:
-    st.metric(
-        "BTC/USD",
-        f"{btc_close:.2f}",
-        "Crypto"
-    )
+    col1, col2, col3 = st.columns(3)
 
-with col3:
-    st.metric(
-        "Gold",
-        f"{gold_close:.2f}",
-        "Commodity"
-    )
+    with col1:
+        st.metric("USD/NGN", usdngn_price, "+0.95")
 
-# AI INSIGHTS
-st.markdown("---")
+    with col2:
+        st.metric("BTC/USD", btc_price, "Crypto")
 
-st.subheader("🧠 AI Market Insight")
+    with col3:
+        st.metric("Gold", gold_price, "Commodity")
 
-if usd_close > 1370:
-    st.warning(
-        "Naira pressure remains elevated. FX volatility continues to impact market stability."
-    )
-else:
-    st.success(
-        "USD/NGN remains relatively stable in the short term."
-    )
+    st.markdown("---")
 
-# MARKET CHART
-st.markdown("---")
+    st.subheader("🧠 AI Market Insight")
 
-st.subheader("📈 USD/NGN Market Trend")
+    insight = """
+    Naira pressure remains elevated as FX volatility continues.
+    Bitcoin remains sensitive to global macroeconomic conditions,
+    while gold prices show continued safe-haven demand.
+    """
 
-fig = go.Figure()
+    st.info(insight)
 
-fig.add_trace(
-    go.Scatter(
-        x=usdngn.index,
-        y=usd_close_series,
-        mode="lines",
-        name="USD/NGN",
-        line=dict(color="cyan", width=3)
-    )
-)
+    st.markdown("---")
 
-fig.update_layout(
-    template="plotly_dark",
-    height=500,
-    title="USD/NGN Exchange Rate Trend",
-    paper_bgcolor="#0E1117",
-    plot_bgcolor="#0E1117",
-    font=dict(color="white")
-)
+    st.subheader("📈 Real Market Trends")
 
-st.plotly_chart(fig, use_container_width=True)
+    # REAL HISTORICAL DATA
+    usdngn_hist = yf.download("NGN=X", period="1mo")
+    btc_hist = yf.download("BTC-USD", period="1mo")
+    gold_hist = yf.download("GC=F", period="1mo")
 
-# MARKET TABLE
-st.markdown("---")
+    chart_data = pd.DataFrame({
+        "USD/NGN": usdngn_hist["Close"],
+        "BTC": btc_hist["Close"],
+        "Gold": gold_hist["Close"]
+    })
 
-st.subheader("📋 Latest Market Data")
+    st.line_chart(chart_data)
 
-st.dataframe(usdngn.tail())
+# MARKETS PAGE
+elif page == "Markets":
 
-# NEWS TERMINAL
-st.markdown("---")
+    st.title("📑 Latest Market Data")
 
-st.subheader("📰 Market News")
+    market_table = pd.DataFrame({
+        "Asset": ["USD/NGN", "BTC/USD", "Gold"],
+        "Price": [usdngn_price, btc_price, gold_price]
+    })
 
-news_data = pd.DataFrame({
-    "Headline": [
-        "CBN Maintains Monetary Tightening Policy",
-        "Oil Prices Show Increased Volatility",
-        "Naira Faces Continued FX Pressure",
-        "Bitcoin Holds Above Key Resistance",
-        "Global Markets Mixed Amid Inflation Concerns"
-    ],
-    "Category": [
-        "Nigeria",
-        "Commodities",
-        "FX",
-        "Crypto",
-        "Global"
-    ]
-})
+    st.dataframe(market_table)
 
-st.table(news_data)
+# AI INSIGHTS PAGE
+elif page == "AI Insights":
 
-# RISK MONITOR
-st.markdown("---")
+    st.title("🤖 AI Financial Insights")
 
-st.subheader("⚠️ Risk Monitor")
+    st.success("""
+    AI detects sustained FX instability in the Nigerian market.
+    
+    Oil price fluctuations may continue impacting inflation
+    and government revenue projections.
+    
+    Investors continue monitoring crypto volatility and
+    commodity market resilience.
+    """)
 
-risk_data = pd.DataFrame({
-    "Risk Factor": [
-        "FX Volatility",
-        "Inflation Pressure",
-        "Oil Market Risk",
-        "Crypto Volatility",
-        "Interest Rate Risk"
-    ],
-    "Status": [
-        "Moderate",
-        "High",
-        "Moderate",
-        "High",
-        "Moderate"
-    ]
-})
+# RISK MONITOR PAGE
+elif page == "Risk Monitor":
 
-st.table(risk_data)
+    st.title("⚠️ Risk Monitor")
+
+    risk_data = pd.DataFrame({
+        "Risk Factor": [
+            "FX Volatility",
+            "Inflation Pressure",
+            "Oil Market Risk",
+            "Crypto Volatility",
+            "Interest Rate Risk"
+        ],
+        "Status": [
+            "Moderate",
+            "High",
+            "Moderate",
+            "High",
+            "Moderate"
+        ]
+    })
+
+    st.table(risk_data)
+
+# NEWS PAGE
+elif page == "News Terminal":
+
+    st.title("📰 Market News")
+
+    news_data = pd.DataFrame({
+        "Headline": [
+            "CBN Maintains Monetary Tightening Policy",
+            "Oil Prices Show Increased Volatility",
+            "Naira Faces Continued FX Pressure",
+            "Bitcoin Holds Above Key Resistance",
+            "Global Markets Mixed Amid Inflation Concerns"
+        ],
+        "Category": [
+            "Nigeria",
+            "Commodities",
+            "FX",
+            "Crypto",
+            "Global"
+        ]
+    })
+
+    st.table(news_data)
 
 # FOOTER
 st.markdown("---")
-
 st.caption("NG Finance Pro • Nigerian Financial Intelligence Platform")
-# REAL MARKET CHARTS
-st.markdown("---")
-st.subheader("📈 Real Market Trends")
-
-# USD/NGN CHART
-st.line_chart(usd_close_series)
-
-# BTC CHART
-st.subheader("₿ Bitcoin Trend")
-st.line_chart(btc_close_series)
-
-# GOLD CHART
-st.subheader("🥇 Gold Trend")
-st.line_chart(gold_close_series)
