@@ -15,12 +15,12 @@ st.set_page_config(
 )
 
 # ============================================
-# AUTO REFRESH EVERY 60 SECONDS
+# AUTO REFRESH
 # ============================================
 st_autorefresh(interval=60000, key="marketrefresh")
 
 # ============================================
-# HELPERS
+# DATA FUNCTIONS
 # ============================================
 @st.cache_data(ttl=300)
 def fetch_data(symbol):
@@ -44,7 +44,12 @@ def fetch_data(symbol):
 def get_close(df):
 
     try:
-        return pd.Series(df["Close"].squeeze()).dropna()
+        close = df["Close"]
+
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+
+        return pd.Series(close).dropna()
 
     except:
         return pd.Series(dtype=float)
@@ -56,7 +61,7 @@ def latest_price(series):
         return round(float(series.iloc[-1]), 2)
 
     except:
-        return None
+        return 0
 
 
 def pct_change(series):
@@ -68,7 +73,7 @@ def pct_change(series):
         )
 
     except:
-        return None
+        return 0
 
 
 # ============================================
@@ -88,6 +93,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
+
 st.sidebar.success("🟢 Market Feed Active")
 
 st.sidebar.write(
@@ -120,9 +126,9 @@ if page == "Dashboard":
         "Real-Time Nigerian Financial Intelligence Platform"
     )
 
-    # ============================
+    # ========================================
     # METRICS
-    # ============================
+    # ========================================
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
@@ -162,10 +168,10 @@ if page == "Dashboard":
 
     st.markdown("---")
 
-    # ============================
+    # ========================================
     # WATCHLIST
-    # ============================
-    st.markdown("## 📌 Market Watchlist")
+    # ========================================
+    st.subheader("📌 Market Watchlist")
 
     watchlist = pd.DataFrame({
         "Asset": [
@@ -198,61 +204,55 @@ if page == "Dashboard":
 
     st.markdown("---")
 
-    # ============================
+    # ========================================
     # AI INSIGHT
-    # ============================
+    # ========================================
     st.subheader("🧠 AI Market Insight")
 
     st.info(
-        "Naira volatility remains elevated amid continued FX demand pressure. "
-        "Bitcoin momentum remains positive while oil market uncertainty "
-        "continues to influence inflation expectations."
+        "Naira volatility remains elevated amid FX demand pressure. "
+        "Oil market uncertainty continues influencing inflation expectations."
     )
 
     st.markdown("---")
 
-    # ============================
+    # ========================================
     # USD/NGN CHART
-    # ============================
-# ============================
-# USD/NGN CHART
-# ============================
-st.subheader("📈 USD/NGN Trend")
+    # ========================================
+    st.subheader("📈 USD/NGN Trend")
 
-if not usdngn_close.empty:
+    if not usdngn_close.empty:
 
-    chart_df = pd.DataFrame({
-        "Date": pd.to_datetime(usdngn_close.index),
-        "Price": usdngn_close.values
-    })
+        chart_df = pd.DataFrame({
+            "Date": pd.to_datetime(usdngn_close.index),
+            "Price": usdngn_close.values
+        })
 
-    chart_df = chart_df.dropna()
+        chart_df = chart_df.dropna()
 
-    fig = go.Figure()
+        fig = go.Figure()
 
-    fig.add_trace(
-        go.Scatter(
-            x=chart_df["Date"],
-            y=chart_df["Price"],
-            mode="lines",
-            name="USD/NGN"
+        fig.add_trace(
+            go.Scatter(
+                x=chart_df["Date"],
+                y=chart_df["Price"],
+                mode="lines",
+                name="USD/NGN"
+            )
         )
-    )
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=500,
-        xaxis_title="Date",
-        yaxis_title="Exchange Rate"
-    )
+        fig.update_layout(
+            template="plotly_dark",
+            height=500,
+            xaxis_title="Date",
+            yaxis_title="Exchange Rate"
+        )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+        st.plotly_chart(
+            fig,
+            use_container_width=True
+        )
 
-else:
-    st.warning("No USD/NGN data available.")
 # ============================================
 # MARKETS PAGE
 # ============================================
@@ -275,17 +275,21 @@ elif page == "Markets":
 
     selected_series = assets[selected_asset]
 
-    # ============================
-    # MARKET CHART
-    # ============================
     if not selected_series.empty:
+
+        chart_df = pd.DataFrame({
+            "Date": pd.to_datetime(selected_series.index),
+            "Price": selected_series.values
+        })
+
+        chart_df = chart_df.dropna()
 
         fig = go.Figure()
 
         fig.add_trace(
             go.Scatter(
-                x=selected_series.index,
-                y=selected_series.values,
+                x=chart_df["Date"],
+                y=chart_df["Price"],
                 mode="lines+markers",
                 name=selected_asset
             )
@@ -301,9 +305,6 @@ elif page == "Markets":
             use_container_width=True
         )
 
-        # ============================
-        # STATISTICS
-        # ============================
         stats_df = pd.DataFrame({
             "Metric": [
                 "Latest Price",
@@ -332,7 +333,7 @@ elif page == "AI Insights":
     st.title("🤖 AI Financial Insights")
 
     st.success(
-        "AI detects continued FX instability within the Nigerian market."
+        "AI detects continued FX instability in Nigerian markets."
     )
 
     st.warning(
@@ -373,7 +374,7 @@ elif page == "Risk Monitor":
     )
 
 # ============================================
-# NEWS PAGE
+# NEWS TERMINAL PAGE
 # ============================================
 elif page == "News Terminal":
 
