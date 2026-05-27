@@ -149,46 +149,50 @@ if page == "Dashboard":
 # =========================
 # MARKETS PAGE
 # =========================
+# =========================
+# MARKETS PAGE
+# =========================
 elif page == "Markets":
 
     st.title("📑 Latest Market Data")
 
-    # CREATE INDIVIDUAL DATAFRAMES
-    usd_df = pd.DataFrame({
-        "Date": usdngn_close.index,
-        "USD/NGN": usdngn_close.values
-    })
+    # SAFE SERIES CONVERSION
+    usd_series = pd.Series(usdngn_close.squeeze())
+    btc_series = pd.Series(btc_close.squeeze())
+    gold_series = pd.Series(gold_close.squeeze())
 
-    btc_df = pd.DataFrame({
-        "Date": btc_close.index,
-        "BTC/USD": btc_close.values
-    })
+    # CREATE CLEAN DATAFRAMES
+    usd_df = usd_series.reset_index()
+    usd_df.columns = ["Date", "USD/NGN"]
 
-    gold_df = pd.DataFrame({
-        "Date": gold_close.index,
-        "Gold": gold_close.values
-    })
+    btc_df = btc_series.reset_index()
+    btc_df.columns = ["Date", "BTC/USD"]
 
-    # MERGE SAFELY
-    market_df = usd_df.merge(
+    gold_df = gold_series.reset_index()
+    gold_df.columns = ["Date", "Gold"]
+
+    # SAFE MERGE
+    market_df = pd.merge(
+        usd_df,
         btc_df,
         on="Date",
         how="outer"
     )
 
-    market_df = market_df.merge(
+    market_df = pd.merge(
+        market_df,
         gold_df,
         on="Date",
         how="outer"
     )
 
-    market_df = market_df.sort_values(by="Date")
+    # SORT DATES
+    market_df = market_df.sort_values("Date")
 
     st.dataframe(
         market_df,
         use_container_width=True
     )
-
 # =========================
 # AI INSIGHTS
 # =========================
