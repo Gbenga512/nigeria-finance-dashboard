@@ -4,14 +4,18 @@ import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
+# =========================
 # PAGE CONFIG
+# =========================
 st.set_page_config(
     page_title="NG Finance Pro",
     page_icon="📈",
     layout="wide"
 )
 
+# =========================
 # SIDEBAR
+# =========================
 st.sidebar.title("📈 NG Finance Pro")
 
 page = st.sidebar.radio(
@@ -29,20 +33,32 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("⚡ System Status")
 st.sidebar.success("Market Feed Active")
 
+# =========================
 # LIVE TIME
+# =========================
 current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+# =========================
 # DOWNLOAD REAL MARKET DATA
+# =========================
 usdngn = yf.download("NGN=X", period="5d", interval="1d")
 btc = yf.download("BTC-USD", period="5d", interval="1d")
 gold = yf.download("GC=F", period="5d", interval="1d")
 
-# SAFE PRICE EXTRACTION
-usdngn_price = round(usdngn["Close"].dropna().values[-1].item(), 2)
-btc_price = round(btc["Close"].dropna().values[-1].item(), 2)
-gold_price = round(gold["Close"].dropna().values[-1].item(), 2)
+# =========================
+# SAFE DATA EXTRACTION
+# =========================
+usdngn_close = usdngn["Close"].squeeze()
+btc_close = btc["Close"].squeeze()
+gold_close = gold["Close"].squeeze()
 
+usdngn_price = round(float(usdngn_close.iloc[-1]), 2)
+btc_price = round(float(btc_close.iloc[-1]), 2)
+gold_price = round(float(gold_close.iloc[-1]), 2)
+
+# =========================
 # DASHBOARD PAGE
+# =========================
 if page == "Dashboard":
 
     st.markdown(f"## Live Time: {current_time}")
@@ -90,7 +106,7 @@ if page == "Dashboard":
     fig.add_trace(
         go.Scatter(
             x=usdngn.index,
-            y=usdngn["Close"],
+            y=usdngn_close,
             mode="lines+markers",
             name="USD/NGN"
         )
@@ -98,25 +114,33 @@ if page == "Dashboard":
 
     fig.update_layout(
         height=500,
-        template="plotly_dark"
+        template="plotly_dark",
+        xaxis_title="Date",
+        yaxis_title="Exchange Rate"
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
+# =========================
 # MARKETS PAGE
+# =========================
 elif page == "Markets":
 
     st.title("📑 Latest Market Data")
 
     market_df = pd.DataFrame({
-        "USD/NGN": usdngn["Close"],
-        "BTC/USD": btc["Close"],
-        "Gold": gold["Close"]
+        "USD/NGN": usdngn_close.values,
+        "BTC/USD": btc_close.values,
+        "Gold": gold_close.values
     })
+
+    market_df.index = usdngn.index
 
     st.dataframe(market_df)
 
+# =========================
 # AI INSIGHTS PAGE
+# =========================
 elif page == "AI Insights":
 
     st.title("🤖 AI Financial Insights")
@@ -129,7 +153,9 @@ elif page == "AI Insights":
         "Oil market volatility may influence Nigerian fiscal performance."
     )
 
+# =========================
 # RISK MONITOR PAGE
+# =========================
 elif page == "Risk Monitor":
 
     st.title("⚠️ Risk Monitor")
@@ -153,7 +179,9 @@ elif page == "Risk Monitor":
 
     st.table(risk_data)
 
+# =========================
 # NEWS TERMINAL PAGE
+# =========================
 elif page == "News Terminal":
 
     st.title("📰 Market News")
@@ -177,6 +205,8 @@ elif page == "News Terminal":
 
     st.table(news_data)
 
+# =========================
 # FOOTER
+# =========================
 st.markdown("---")
 st.caption("NG Finance Pro • Nigerian Financial Intelligence Platform")
