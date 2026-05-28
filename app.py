@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
@@ -20,7 +21,12 @@ st.set_page_config(
 st_autorefresh(interval=60000, key="marketrefresh")
 
 # ============================================
-# DATA FUNCTIONS
+# NEWS API KEY
+# ============================================
+API_KEY = "0d06d149269943a8bdefc350b082ce9b"
+
+# ============================================
+# FUNCTIONS
 # ============================================
 @st.cache_data(ttl=300)
 def fetch_data(symbol):
@@ -76,6 +82,42 @@ def pct_change(series):
         return 0
 
 
+@st.cache_data(ttl=600)
+def fetch_news():
+
+    url = (
+        f"https://newsapi.org/v2/everything?"
+        f"q=Nigeria finance OR cryptocurrency OR oil market&"
+        f"sortBy=publishedAt&"
+        f"language=en&"
+        f"apiKey={API_KEY}"
+    )
+
+    try:
+        response = requests.get(url)
+
+        if response.status_code == 200:
+
+            data = response.json()
+
+            articles = []
+
+            for article in data["articles"][:10]:
+
+                articles.append({
+                    "Headline": article["title"],
+                    "Source": article["source"]["name"],
+                    "Published": article["publishedAt"][:10]
+                })
+
+            return pd.DataFrame(articles)
+
+        return pd.DataFrame()
+
+    except:
+        return pd.DataFrame()
+
+
 # ============================================
 # SIDEBAR
 # ============================================
@@ -116,7 +158,7 @@ gold_close = get_close(gold)
 oil_close = get_close(oil)
 
 # ============================================
-# DASHBOARD PAGE
+# DASHBOARD
 # ============================================
 if page == "Dashboard":
 
@@ -205,7 +247,7 @@ if page == "Dashboard":
     st.markdown("---")
 
     # ========================================
-    # AI INSIGHT
+    # AI MARKET INSIGHT
     # ========================================
     st.subheader("🧠 AI Market Insight")
 
@@ -305,26 +347,6 @@ elif page == "Markets":
             use_container_width=True
         )
 
-        stats_df = pd.DataFrame({
-            "Metric": [
-                "Latest Price",
-                "Highest Price",
-                "Lowest Price",
-                "Average Price"
-            ],
-            "Value": [
-                latest_price(selected_series),
-                round(selected_series.max(), 2),
-                round(selected_series.min(), 2),
-                round(selected_series.mean(), 2)
-            ]
-        })
-
-        st.dataframe(
-            stats_df,
-            use_container_width=True
-        )
-
 # ============================================
 # AI INSIGHTS PAGE
 # ============================================
@@ -374,33 +396,26 @@ elif page == "Risk Monitor":
     )
 
 # ============================================
-# NEWS TERMINAL PAGE
+# NEWS TERMINAL
 # ============================================
 elif page == "News Terminal":
 
-    st.title("📰 Market News")
+    st.title("📰 Live Financial News")
 
-    news_data = pd.DataFrame({
-        "Headline": [
-            "CBN Maintains Monetary Tightening Policy",
-            "Oil Prices Show Increased Volatility",
-            "Naira Faces Continued FX Pressure",
-            "Bitcoin Holds Above Key Resistance",
-            "Global Markets Mixed Amid Inflation Concerns"
-        ],
-        "Category": [
-            "Nigeria",
-            "Commodities",
-            "FX",
-            "Crypto",
-            "Global"
-        ]
-    })
+    news_df = fetch_news()
 
-    st.dataframe(
-        news_data,
-        use_container_width=True
-    )
+    if not news_df.empty:
+
+        st.dataframe(
+            news_df,
+            use_container_width=True
+        )
+
+    else:
+        st.warning(
+            "Unable to load live news. "
+            "Check API key or internet connection."
+        )
 
 # ============================================
 # FOOTER
