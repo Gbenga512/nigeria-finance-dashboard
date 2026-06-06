@@ -161,8 +161,8 @@ def generate_ai_insight(
 
         return response.choices[0].message.content
 
-    except:
-        return "AI market analysis unavailable."
+    except Exception as e:
+    return f"AI Error: {str(e)}"
 
 
 # ============================================
