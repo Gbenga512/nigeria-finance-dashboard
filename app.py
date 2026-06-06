@@ -162,8 +162,7 @@ try:
     Nigerian markets remain sensitive to FX movements,
     commodity prices and global crypto trends.
     """
-
-return insight
+    return insight
 
 except Exception as e:
     return f"AI Error: {str(e)}"
