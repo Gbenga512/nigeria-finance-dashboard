@@ -162,7 +162,7 @@ def generate_ai_insight(
         return response.choices[0].message.content
 
     except Exception as e:
-    return f"AI Error: {str(e)}"
+        return f"AI Error: {str(e)}"
 
 
 # ============================================
