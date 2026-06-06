@@ -148,21 +148,25 @@ def generate_ai_insight(
     """
 
     try:
+    insight = f"""
+    USD/NGN: {usd_price}
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
+    Bitcoin: {btc_price}
 
-        return response.choices[0].message.content
+    Ethereum: {eth_price}
 
-    except Exception as e:
-        return f"AI Error: {str(e)}"
+    Gold: {gold_price}
+
+    Crude Oil: {oil_price}
+
+    Nigerian markets remain sensitive to FX movements,
+    commodity prices and global crypto trends.
+    """
+
+    return insight
+
+except Exception as e:
+    return f"AI Error: {str(e)}"
 
 
 # ============================================
