@@ -147,27 +147,22 @@ def generate_ai_insight(
     FX pressure, crypto, and commodities.
     """
 
-try:
-        insight = f"""
-           USD/NGN: {usd_price}
+    try:
 
-            Bitcoin: {btc_price}
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
 
-              Ethereum: {eth_price}
+        return response.choices[0].message.content
 
-                Gold: {gold_price}
-
-                  Crude Oil: {oil_price}
-        insight = """
-Nigerian markets remain sensitive to FX movements,
-commodity prices and global crypto trends.
-"""
-
-        return insight
-
-    except Exception as e:
-        return f"AI Error: {str(e)}"
-    return f"AI Error: {str(e)}"
+    except:
+        return "AI market analysis unavailable."
 
 
 # ============================================
