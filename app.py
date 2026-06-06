@@ -148,16 +148,16 @@ def generate_ai_insight(
     """
 
      try:
-    insight = f"""
-    USD/NGN: {usd_price}
+         insight = f"""
+           USD/NGN: {usd_price}
 
-    Bitcoin: {btc_price}
+            Bitcoin: {btc_price}
 
-    Ethereum: {eth_price}
+              Ethereum: {eth_price}
 
-    Gold: {gold_price}
+                Gold: {gold_price}
 
-    Crude Oil: {oil_price}
+                  Crude Oil: {oil_price}
 
     Nigerian markets remain sensitive to FX movements,
     commodity prices and global crypto trends.
