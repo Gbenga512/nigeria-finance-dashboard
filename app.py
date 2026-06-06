@@ -147,7 +147,7 @@ def generate_ai_insight(
     FX pressure, crypto, and commodities.
     """
 
-    try:
+     try:
     insight = f"""
     USD/NGN: {usd_price}
 
