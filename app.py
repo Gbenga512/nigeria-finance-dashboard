@@ -158,13 +158,15 @@ try:
                 Gold: {gold_price}
 
                   Crude Oil: {oil_price}
+        insight = """
+Nigerian markets remain sensitive to FX movements,
+commodity prices and global crypto trends.
+"""
 
-    Nigerian markets remain sensitive to FX movements,
-    commodity prices and global crypto trends.
-    """
-         return insight
+        return insight
 
-except Exception as e:
+    except Exception as e:
+        return f"AI Error: {str(e)}"
     return f"AI Error: {str(e)}"
 
 
