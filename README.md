@@ -6,6 +6,21 @@ NG Finance Pro is an AI-powered Financial Intelligence and Treasury Management P
 
 The platform combines market intelligence, treasury monitoring, budget analysis, and financial analytics into a single dashboard designed for finance professionals, treasury analysts, accountants, investors, and business managers.
 
+## Project Objective
+
+NG Finance Pro was developed to provide investors, accountants, treasury professionals, and finance managers with a centralized platform for financial intelligence and decision support.
+
+The long-term objective is to enable users to upload company financial statements and automatically receive:
+
+- Financial ratio analysis
+- Liquidity assessment
+- Profitability assessment
+- Solvency assessment
+- Financial health scoring
+- Investment recommendations
+- Company comparison reports
+
+This project combines Accounting, Treasury Management, Financial Engineering, Data Analytics, and Artificial Intelligence into a single decision-support platform.
 ---
 
 ## Features
@@ -75,28 +90,60 @@ The platform combines market intelligence, treasury monitoring, budget analysis,
 
 (Add screenshot here)
 
+## Current Development Status
+
+Version: 1.0
+
+Completed Modules:
+
+✅ Market Intelligence Dashboard
+
+✅ Treasury Dashboard
+
+✅ Bank Reconciliation Upload System
+
+✅ Budget vs Actual Analysis
+
+✅ AI Market Insights
+
+✅ Financial News Terminal
+
+In Development:
+
+🚧 Financial Statement Analyzer
+
+🚧 Financial Health Score Engine
+
+🚧 Automated Reconciliation Engine
+
+🚧 Investment Research Assistant
 ---
 
 ## Future Roadmap
 
 ### Phase 1
-
-* Financial Statement Analyzer
-* Financial Health Scoring
-* Ratio Analysis Engine
+- Financial Statement Analyzer
+- Ratio Analysis Engine
+- Financial Health Scoring
+- Investor Recommendation Engine
 
 ### Phase 2
-
-* Automated Bank Reconciliation
-* Cash Flow Forecasting
-* Treasury Risk Dashboard
+- Automated Bank Reconciliation
+- Cash Flow Forecasting
+- Treasury Risk Dashboard
+- Liquidity Monitoring
 
 ### Phase 3
+- PDF Annual Report Analysis
+- AI Investment Research Assistant
+- Company Comparison Tool
+- Valuation Dashboard
 
-* PDF Annual Report Analysis
-* AI Investment Research Assistant
-* Company Comparison Tool
-
+### Phase 4
+- Portfolio Analytics
+- Stock Screening Engine
+- Credit Risk Modelling
+- Financial Forecasting Models
 ---
 
 ## Author
