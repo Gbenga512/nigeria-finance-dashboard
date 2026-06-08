@@ -318,11 +318,11 @@ if cashbook_file.name.endswith(".csv"):
 else:
     cashbook_df = pd.read_excel(cashbook_file)
 
-        st.subheader("Bank Statement")
-        st.dataframe(bank_df.head())
+    st.subheader("Bank Statement")
+    st.dataframe(bank_df.head())
 
-        st.subheader("Cashbook")
-        st.dataframe(cashbook_df.head())
+    st.subheader("Cashbook")
+    st.dataframe(cashbook_df.head())
     st.dataframe(treasury_data)
 elif page == "Budget Analysis":
 
