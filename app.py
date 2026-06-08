@@ -308,23 +308,23 @@ elif page == "Bank Reconciliation":
 
         st.success("Files uploaded successfully")
 
-    if bank_file.name.endswith(".csv"):
-       bank_df = pd.read_csv(bank_file)
-else:
-       bank_df = pd.read_excel(bank_file)
+        if bank_file.name.endswith(".csv"):
+            bank_df = pd.read_csv(bank_file)
+        else:
+            bank_df = pd.read_excel(bank_file)
 
-if cashbook_file.name.endswith(".csv"):
-    cashbook_df = pd.read_csv(cashbook_file)
-else:
-    cashbook_df = pd.read_excel(cashbook_file)
+        if cashbook_file.name.endswith(".csv"):
+            cashbook_df = pd.read_csv(cashbook_file)
+        else:
+            cashbook_df = pd.read_excel(cashbook_file)
 
-    st.subheader("Bank Statement")
-    st.dataframe(bank_df.head())
+        st.subheader("Bank Statement")
+        st.dataframe(bank_df.head())
 
-    st.subheader("Cashbook")
-    st.dataframe(cashbook_df.head())
+        st.subheader("Cashbook")
+        st.dataframe(cashbook_df.head())
    
- elif page == "Budget Analysis":
+elif page == "Budget Analysis":
     st.title("📊 Budget vs Actual Analysis")
     budget = pd.DataFrame({
         "Department": ["Finance", "HR", "Operations"],
