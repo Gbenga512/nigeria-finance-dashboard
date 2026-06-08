@@ -5,3 +5,4 @@ plotly
 requests
 openai
 streamlit-autorefresh
+openpyxl
