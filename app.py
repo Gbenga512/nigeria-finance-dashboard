@@ -130,7 +130,7 @@ st.sidebar.title("📈 NG Finance Pro")
 
 page = st.sidebar.radio(
     "Navigation",
-    ["Dashboard", "Markets", "AI Insights", "Risk Monitor", "News Terminal"]
+    ["Dashboard", "Markets", "AI Insights", "Risk Monitor", "News Terminal", "Treasury Dashboard", "Bank Reconciliation", "Budget Analysis"]
 )
 
 st.sidebar.markdown("---")
@@ -262,6 +262,79 @@ elif page == "News Terminal":
         st.dataframe(news_df, width="stretch")
     else:
         st.warning("Unable to load live news.")
+elif page == "Treasury Dashboard":
 
+    st.title("🏦 Treasury Dashboard")
+
+    cash_position = 250000000
+    outstanding_cheques = 12000000
+    unreconciled_items = 15
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Cash Position", f"₦{cash_position:,.0f}")
+    col2.metric("Outstanding Cheques", f"₦{outstanding_cheques:,.0f}")
+    col3.metric("Unreconciled Items", unreconciled_items)
+
+    treasury_data = pd.DataFrame({
+        "Metric": [
+            "Cash Position",
+            "Outstanding Cheques",
+            "Unpresented Deposits",
+            "Unreconciled Transactions"
+        ],
+        "Amount": [
+            250000000,
+            12000000,
+            5000000,
+            3500000
+        ]
+    })
+elif page == "Bank Reconciliation":
+
+    st.title("🏦 Bank Reconciliation")
+
+    bank_file = st.file_uploader(
+        "Upload Bank Statement",
+        type=["xlsx", "csv"]
+    )
+
+    cashbook_file = st.file_uploader(
+        "Upload Cashbook",
+        type=["xlsx", "csv"]
+    )
+
+    if bank_file and cashbook_file:
+
+        st.success("Files uploaded successfully")
+
+        bank_df = pd.read_excel(bank_file)
+        cashbook_df = pd.read_excel(cashbook_file)
+
+        st.subheader("Bank Statement")
+        st.dataframe(bank_df.head())
+
+        st.subheader("Cashbook")
+        st.dataframe(cashbook_df.head())
+    st.dataframe(treasury_data, width="stretch")
+elif page == "Budget Analysis":
+
+    st.title("📊 Budget vs Actual Analysis")
+
+    budget = pd.DataFrame({
+        "Department": ["Finance", "HR", "Operations"],
+        "Budget": [5000000, 3000000, 8000000],
+        "Actual": [4500000, 3500000, 7600000]
+    })
+
+    budget["Variance"] = (
+        budget["Actual"] - budget["Budget"]
+    )
+
+    st.dataframe(budget, width="stretch")
+
+    st.bar_chart(
+        budget.set_index("Department")[["Budget", "Actual"]]
+    )
 st.markdown("---")
 st.caption("NG Finance Pro • AI Financial Intelligence Platform")
