@@ -290,10 +290,10 @@ elif page == "Treasury Dashboard":
             3500000
         ]
     })
+    st.dataframe(treasury_data)
+
 elif page == "Bank Reconciliation":
-
     st.title("🏦 Bank Reconciliation")
-
     bank_file = st.file_uploader(
         "Upload Bank Statement",
         type=["xlsx", "csv"]
@@ -323,11 +323,9 @@ else:
 
     st.subheader("Cashbook")
     st.dataframe(cashbook_df.head())
-    st.dataframe(treasury_data)
+   
  elif page == "Budget Analysis":
-
     st.title("📊 Budget vs Actual Analysis")
-
     budget = pd.DataFrame({
         "Department": ["Finance", "HR", "Operations"],
         "Budget": [5000000, 3000000, 8000000],
