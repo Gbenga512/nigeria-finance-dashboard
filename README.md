@@ -76,19 +76,20 @@ This project combines Accounting, Treasury Management, Financial Engineering, Da
 
 ### Dashboard
 
-(Add screenshot here)
+![Dashboard](screenshots/dashboard.PNG)
 
 ### Treasury Dashboard
 
-(Add screenshot here)
+![Treasury Dashboard](screenshots/treasurydash-board.PNG)
 
 ### Bank Reconciliation
 
-(Add screenshot here)
+
+![Bank Reconciliation](screenshots/bank-reconciliation.PNG)
 
 ### Budget Analysis
 
-(Add screenshot here)
+![Budget Analysis](screenshots/budget-analysis.PNG
 
 ## Current Development Status
 
