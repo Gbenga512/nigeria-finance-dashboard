@@ -309,9 +309,9 @@ elif page == "Bank Reconciliation":
         st.success("Files uploaded successfully")
 
     if bank_file.name.endswith(".csv"):
-    bank_df = pd.read_csv(bank_file)
+       bank_df = pd.read_csv(bank_file)
 else:
-    bank_df = pd.read_excel(bank_file)
+       bank_df = pd.read_excel(bank_file)
 
 if cashbook_file.name.endswith(".csv"):
     cashbook_df = pd.read_csv(cashbook_file)
