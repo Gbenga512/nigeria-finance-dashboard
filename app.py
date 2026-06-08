@@ -308,15 +308,22 @@ elif page == "Bank Reconciliation":
 
         st.success("Files uploaded successfully")
 
-        bank_df = pd.read_excel(bank_file)
-        cashbook_df = pd.read_excel(cashbook_file)
+    if bank_file.name.endswith(".csv"):
+    bank_df = pd.read_csv(bank_file)
+else:
+    bank_df = pd.read_excel(bank_file)
+
+if cashbook_file.name.endswith(".csv"):
+    cashbook_df = pd.read_csv(cashbook_file)
+else:
+    cashbook_df = pd.read_excel(cashbook_file)
 
         st.subheader("Bank Statement")
         st.dataframe(bank_df.head())
 
         st.subheader("Cashbook")
         st.dataframe(cashbook_df.head())
-    st.dataframe(treasury_data, width="stretch")
+    st.dataframe(treasury_data)
 elif page == "Budget Analysis":
 
     st.title("📊 Budget vs Actual Analysis")
@@ -331,7 +338,7 @@ elif page == "Budget Analysis":
         budget["Actual"] - budget["Budget"]
     )
 
-    st.dataframe(budget, width="stretch")
+    st.dataframe(budget)
 
     st.bar_chart(
         budget.set_index("Department")[["Budget", "Actual"]]
