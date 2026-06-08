@@ -89,7 +89,7 @@ This project combines Accounting, Treasury Management, Financial Engineering, Da
 
 ### Budget Analysis
 
-![Budget Analysis](screenshots/budget-analysis.PNG
+![Budget Analysis](screenshots/budget-analysis.PNG)
 
 ## Current Development Status
 
