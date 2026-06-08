@@ -324,7 +324,7 @@ else:
     st.subheader("Cashbook")
     st.dataframe(cashbook_df.head())
     st.dataframe(treasury_data)
-elif page == "Budget Analysis":
+ elif page == "Budget Analysis":
 
     st.title("📊 Budget vs Actual Analysis")
 
