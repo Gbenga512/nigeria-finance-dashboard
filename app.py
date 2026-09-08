@@ -43,7 +43,7 @@ snapshot = market_snapshot()
 st.sidebar.divider()
 st.sidebar.success("🟢 Market Feed Active")
 st.sidebar.caption(f"Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-st.sidebar.caption("Data sources: Yahoo Finance / NewsAPI (when configured)")
+st.sidebar.caption("Data sources: Yahoo Finance; live news and AI are optional")
 
 if page == "Dashboard":
     insight, _ = generate_ai_insight(snapshot)
@@ -53,12 +53,12 @@ elif page == "Markets":
     markets.render(MARKET_SYMBOLS)
 
 elif page == "AI Insights":
-    st.title("🤖 AI Financial Analyst")
+    st.title("🤖 Financial Analyst")
     insight, ai_active = generate_ai_insight(snapshot)
     if ai_active:
         st.success("OpenAI analysis active")
     else:
-        st.info("Rule-based analyst mode active — add OPENAI_API_KEY to enable AI analysis.")
+        st.info("Free analyst mode active — no OPENAI_API_KEY is required.")
     st.write(insight)
     st.caption("Insights are informational and are not personalized investment advice.")
 
@@ -69,7 +69,8 @@ elif page == "News Terminal":
     st.title("📰 Financial News Terminal")
     news = fetch_news(15)
     if news.empty:
-        st.warning("Live news is unavailable. Configure NEWS_API_KEY in Streamlit secrets to enable the news feed.")
+        st.info("Live NewsAPI feed is optional and is not configured. All other NG Finance Pro modules remain available.")
+        st.caption("Add NEWS_API_KEY later when you are ready for live news integration.")
     else:
         for _, item in news.iterrows():
             headline = item.get("Headline", "Untitled")
@@ -95,4 +96,4 @@ elif page == "Financial Statement Analyzer":
     financial_statements.render()
 
 st.divider()
-st.caption("NG Finance Pro • Financial Intelligence Platform • MVP v2.1")
+st.caption("NG Finance Pro • Financial Intelligence Platform • MVP v2.1 • Zero-API-cost mode")
