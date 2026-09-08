@@ -8,6 +8,7 @@ from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk
+from ui import inject_styles, footer
 
 
 st.set_page_config(
@@ -17,11 +18,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.sidebar.title("📈 NG Finance Pro")
-st.sidebar.caption("Financial Intelligence & Treasury Platform")
+inject_styles()
+
+st.sidebar.markdown("## 📈 NG Finance Pro")
+st.sidebar.caption("Financial Intelligence Platform")
+st.sidebar.divider()
 
 page = st.sidebar.radio(
-    "Navigation",
+    "Workspace",
     [
         "Dashboard",
         "Markets",
@@ -41,9 +45,9 @@ if page in {"Dashboard", "Markets", "AI Insights", "Risk Monitor", "News Termina
 snapshot = market_snapshot()
 
 st.sidebar.divider()
-st.sidebar.success("🟢 Market Feed Active")
-st.sidebar.caption(f"Last refresh: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-st.sidebar.caption("Data sources: Yahoo Finance; live news and AI are optional")
+st.sidebar.success("● Market feed active")
+st.sidebar.caption(f"Refreshed {datetime.now().strftime('%d %b %Y, %H:%M')}")
+st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
 
 if page == "Dashboard":
     insight, _ = generate_ai_insight(snapshot)
@@ -95,5 +99,4 @@ elif page == "Budget Analysis":
 elif page == "Financial Statement Analyzer":
     financial_statements.render()
 
-st.divider()
-st.caption("NG Finance Pro • Financial Intelligence Platform • MVP v2.1 • Zero-API-cost mode")
+footer()
