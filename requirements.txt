@@ -6,3 +6,4 @@ requests
 openai
 streamlit-autorefresh
 openpyxl
+pytest
