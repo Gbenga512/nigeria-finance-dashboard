@@ -55,7 +55,10 @@ elif page == "Markets":
 elif page == "AI Insights":
     st.title("🤖 AI Financial Analyst")
     insight, ai_active = generate_ai_insight(snapshot)
-    st.success("OpenAI analysis active") if ai_active else st.info("Rule-based analyst mode active — add OPENAI_API_KEY to enable AI analysis.")
+    if ai_active:
+        st.success("OpenAI analysis active")
+    else:
+        st.info("Rule-based analyst mode active — add OPENAI_API_KEY to enable AI analysis.")
     st.write(insight)
     st.caption("Insights are informational and are not personalized investment advice.")
 
@@ -74,9 +77,9 @@ elif page == "News Terminal":
             published = item.get("Published", "")
             url = item.get("URL", "")
             if url:
-                st.markdown(f"**{headline}**  \\n{source} • {published} • [Read article]({url})")
+                st.markdown(f"**{headline}**  \n{source} • {published} • [Read article]({url})")
             else:
-                st.markdown(f"**{headline}**  \\n{source} • {published}")
+                st.markdown(f"**{headline}**  \n{source} • {published}")
             st.divider()
 
 elif page == "Treasury Dashboard":
