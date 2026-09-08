@@ -2,150 +2,138 @@
 
 ## Overview
 
-NG Finance Pro is an AI-powered Financial Intelligence and Treasury Management Platform developed using Python and Streamlit.
+NG Finance Pro is a Streamlit-based financial intelligence and treasury decision-support platform for accountants, treasury professionals, finance managers and analysts.
 
-The platform combines market intelligence, treasury monitoring, budget analysis, and financial analytics into a single dashboard designed for finance professionals, treasury analysts, accountants, investors, and business managers.
+The project combines Nigerian market monitoring, treasury analytics, budget variance analysis, bank reconciliation, financial statement ratios and an optional AI analyst into one application.
 
-## Project Objective
+## Version 2.1 Upgrade
 
-NG Finance Pro was developed to provide investors, accountants, treasury professionals, and finance managers with a centralized platform for financial intelligence and decision support.
+The repository has been upgraded from a monolithic MVP into a modular architecture with separate configuration, services, analytics and UI layers.
 
-The long-term objective is to enable users to upload company financial statements and automatically receive:
+### What is now implemented
 
-- Financial ratio analysis
-- Liquidity assessment
-- Profitability assessment
-- Solvency assessment
-- Financial health scoring
-- Investment recommendations
-- Company comparison reports
+- Live market snapshot for USD/NGN, BTC, ETH, gold and crude oil through yFinance
+- Cached market-data service with graceful failure handling
+- Financial news terminal with optional NewsAPI integration
+- Optional OpenAI financial analyst with a rule-based fallback when no API key is configured
+- Interactive treasury dashboard with adjusted available cash and estimated cash runway
+- Real one-to-one bank reconciliation using amount matching and configurable date tolerance
+- Budget vs actual upload and variance analysis
+- Financial statement analyzer for standardized CSV/XLSX extracts
+- Core liquidity, profitability, solvency and cash-flow ratios
+- Financial health score from 0–100 across five dimensions
+- Market-derived volatility risk indicators
+- Automated unit tests and GitHub Actions CI
 
-This project combines Accounting, Treasury Management, Financial Engineering, Data Analytics, and Artificial Intelligence into a single decision-support platform.
----
+## Financial Statement Input Format
 
-## Features
+Upload CSV or XLSX files with two columns such as:
 
-### Market Intelligence
+```text
+Account,Amount
+Cash & Cash Equivalents,100000000
+Current Assets,250000000
+Current Liabilities,150000000
+Total Assets,600000000
+Total Liabilities,250000000
+Total Equity,350000000
+Total Debt,120000000
+```
 
-* Live USD/NGN Exchange Rate Monitoring
-* Bitcoin Market Tracking
-* Ethereum Market Tracking
-* Gold Price Monitoring
-* Crude Oil Price Monitoring
-* Interactive Market Charts
-* AI-Generated Market Insights
-* Live Financial News Feed
+The analyzer supports Balance Sheet, Income Statement and Cash Flow extracts. The line-item names should match the items shown in the application for the most complete ratio coverage.
 
-### Treasury Dashboard
+## Bank Reconciliation Input Format
 
-* Cash Position Monitoring
-* Outstanding Cheques Tracking
-* Unpresented Deposits Monitoring
-* Unreconciled Transactions Monitoring
+Each file should contain identifiable Date and Amount columns. Optional description/narration/reference columns are also supported. The engine matches each bank transaction to at most one cashbook transaction using amount equality to two decimal places and a configurable date tolerance.
 
-### Bank Reconciliation
+## Budget Input Format
 
-* Upload Bank Statements
-* Upload Cashbook Files
-* Excel and CSV Support
-* Foundation for Automated Reconciliation
+CSV/XLSX files should contain:
 
-### Budget vs Actual Analysis
+```text
+Department,Budget,Actual
+Finance,5000000,4500000
+HR,3000000,3500000
+Operations,8000000,7600000
+```
 
-* Budget Monitoring
-* Variance Analysis
-* Departmental Performance Review
-* Visual Budget Reporting
+## Configuration
 
----
+For Streamlit Cloud, add secrets for:
+
+```toml
+NEWS_API_KEY = "your-newsapi-key"
+OPENAI_API_KEY = "your-openai-api-key"
+```
+
+`OPENAI_API_KEY` is optional. Without it, the application uses a deterministic rule-based analyst rather than pretending that static text is AI-generated.
+
+## Architecture
+
+```text
+NG Finance Pro
+├── app.py
+├── config/
+│   └── settings.py
+├── services/
+│   ├── market_data.py
+│   ├── news_service.py
+│   └── ai_service.py
+├── analytics/
+│   ├── ratios.py
+│   ├── financial_health.py
+│   └── reconciliation.py
+├── pages/
+│   ├── dashboard.py
+│   ├── markets.py
+│   ├── risk.py
+│   ├── treasury.py
+│   ├── reconciliation.py
+│   ├── budget.py
+│   └── financial_statements.py
+└── tests/
+    └── test_analytics.py
+```
 
 ## Technology Stack
 
-* Python
-* Streamlit
-* Pandas
-* Plotly
-* yFinance
-* News API
-* GitHub
-* Streamlit Cloud
+- Python 3.11
+- Streamlit
+- Pandas
+- Plotly
+- yFinance
+- OpenAI API (optional)
+- NewsAPI (optional)
+- OpenPyXL
+- Pytest
+- GitHub Actions
 
----
+## Roadmap
 
-## Screenshots
+### V2.2 — Data & Persistence
+- SQLite/PostgreSQL database layer
+- Company and user records
+- Persistent treasury transactions
+- Audit trail
 
-### Dashboard
+### V2.3 — Treasury Intelligence
+- Cash-flow forecasting
+- Liquidity stress testing
+- Cash concentration analysis
+- Bank/account-level treasury reporting
 
-![Dashboard](screenshots/dashboard.PNG)
+### V2.4 — Advanced Financial Analytics
+- PDF annual-report extraction
+- Multi-period ratio trends
+- Peer/company comparison
+- Valuation models
+- Credit-risk indicators
 
-### Treasury Dashboard
-
-![Treasury Dashboard](screenshots/treasurydash-board.PNG)
-
-### Bank Reconciliation
-
-
-![Bank Reconciliation](screenshots/bank-reconciliation.PNG)
-
-### Budget Analysis
-
-![Budget Analysis](screenshots/budget-analysis.PNG)
-
-## Current Development Status
-
-Version: 1.0
-
-Completed Modules:
-
-✅ Market Intelligence Dashboard
-
-✅ Treasury Dashboard
-
-✅ Bank Reconciliation Upload System
-
-✅ Budget vs Actual Analysis
-
-✅ AI Market Insights
-
-✅ Financial News Terminal
-
-In Development:
-
-🚧 Financial Statement Analyzer
-
-🚧 Financial Health Score Engine
-
-🚧 Automated Reconciliation Engine
-
-🚧 Investment Research Assistant
----
-
-## Future Roadmap
-
-### Phase 1
-- Financial Statement Analyzer
-- Ratio Analysis Engine
-- Financial Health Scoring
-- Investor Recommendation Engine
-
-### Phase 2
-- Automated Bank Reconciliation
-- Cash Flow Forecasting
-- Treasury Risk Dashboard
-- Liquidity Monitoring
-
-### Phase 3
-- PDF Annual Report Analysis
-- AI Investment Research Assistant
-- Company Comparison Tool
-- Valuation Dashboard
-
-### Phase 4
-- Portfolio Analytics
-- Stock Screening Engine
-- Credit Risk Modelling
-- Financial Forecasting Models
----
+### V2.5 — Investment & AI Research
+- Structured investment research assistant
+- Nigerian listed-company screening
+- Portfolio analytics
+- Explainable AI research summaries
 
 ## Author
 
@@ -153,10 +141,6 @@ Gbenga Olufisayo
 
 Accountant | Treasury Professional | Financial Engineering Enthusiast
 
----
-
 ## Live Application
-
-Streamlit Deployment Link
 
 https://nigeria-finance-dashboard-5brcqb4w4rsryneyh4tyeq.streamlit.app/
