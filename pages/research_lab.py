@@ -5,7 +5,7 @@ import streamlit as st
 from analytics.backtesting import walk_forward_backtest
 from analytics.factors import factor_features, factor_signal
 from analytics.ml_regime import regime_ml_experiment
-from analytics.portfolio_risk import portfolio_returns, risk_ratios
+from analytics.portfolio_risk import portfolio_returns, risk_ratios, optimized_portfolio_walk_forward, portfolio_stress_matrix
 from analytics.research_lab import methodology_record, research_summary, rolling_volatility, run_research_experiment, scenario_matrix
 from config.settings import MARKET_SYMBOLS
 from services.market_data import close_series, fetch_market_data
@@ -121,19 +121,15 @@ def render():
         k2.metric("OOS Sharpe", f"{summary['sharpe']:.2f}")
         k3.metric("OOS Max Drawdown", f"{summary['maximum_drawdown']:.2%}")
         k4.metric("OOS Alpha", f"{summary['oos_alpha']:.2%}")
-
-        equity = wf["equity"].reset_index()
-        equity = equity.rename(columns={equity.columns[0]: "Date"})
+        equity = wf["equity"].reset_index().rename(columns={wf["equity"].index.name or "index": "Date"})
         equity_long = equity.melt(id_vars=["Date"], var_name="Series", value_name="Growth of $1")
         fig = px.line(equity_long, x="Date", y="Growth of $1", color="Series", title=f"Out-of-sample equity curve — {wf_asset}")
         fig.update_layout(height=380)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
         st.markdown("#### Walk-forward blocks")
         blocks = wf["blocks"]
         st.dataframe(blocks.style.format({"Training Sharpe": "{:.2f}", "Test Return": "{:.2%}", "Test Sharpe": "{:.2f}", "Test Max Drawdown": "{:.2%}", "Benchmark Return": "{:.2%}", "Turnover": "{:.2f}"}), use_container_width=True, hide_index=True)
         st.caption("Candidate set: momentum, mean-reversion, and buy-and-hold. Selection is net of transaction costs and uses only the training sample.")
-
         regime_table = wf.get("regime_summary", pd.DataFrame())
         if not regime_table.empty:
             st.markdown("#### Regime-conditioned OOS performance")
@@ -141,7 +137,7 @@ def render():
             st.caption("Regimes are classified from rolling volatility as an ex-post diagnostic; they are not used to select the strategy during the test period.")
 
     st.markdown("### Portfolio walk-forward validation")
-    st.caption("A fixed-weight multi-asset portfolio is evaluated on aligned daily returns. The benchmark uses equal weights; portfolio weights are normalized automatically.")
+    st.caption("Fixed weights are evaluated out-of-sample for comparison; the optimizer below performs true sequential minimum-variance re-estimation using training data only.")
     portfolio_assets = st.multiselect("Portfolio assets", list(price_map.keys()), default=list(price_map.keys()), key="wf_port_assets")
     if portfolio_assets:
         weight_cols = st.columns(len(portfolio_assets))
@@ -160,18 +156,36 @@ def render():
             p2.metric("Portfolio Sortino", "—" if p_metrics["sortino"] is None else f"{p_metrics['sortino']:.2f}")
             p3.metric("Equal-weight Sharpe", "—" if b_metrics["sharpe"] is None else f"{b_metrics['sharpe']:.2f}")
             p4.metric("Equal-weight Sortino", "—" if b_metrics["sortino"] is None else f"{b_metrics['sortino']:.2f}")
-            comparison = pd.DataFrame([{
-                "Portfolio": "Configured portfolio",
-                "Sharpe": p_metrics["sharpe"],
-                "Sortino": p_metrics["sortino"],
-                "Calmar": p_metrics["calmar"],
-            }, {
-                "Portfolio": "Equal-weight benchmark",
-                "Sharpe": b_metrics["sharpe"],
-                "Sortino": b_metrics["sortino"],
-                "Calmar": b_metrics["calmar"],
-            }])
+            comparison = pd.DataFrame([{"Portfolio": "Configured portfolio", "Sharpe": p_metrics["sharpe"], "Sortino": p_metrics["sortino"], "Calmar": p_metrics["calmar"]}, {"Portfolio": "Equal-weight benchmark", "Sharpe": b_metrics["sharpe"], "Sortino": b_metrics["sortino"], "Calmar": b_metrics["calmar"]}])
             st.dataframe(comparison.style.format({"Sharpe": "{:.2f}", "Sortino": "{:.2f}", "Calmar": "{:.2f}"}), use_container_width=True, hide_index=True)
+
+        st.markdown("#### True portfolio walk-forward optimizer")
+        opt = optimized_portfolio_walk_forward({asset: price_map[asset] for asset in portfolio_assets}, train_window=train_window, test_window=test_window, transaction_cost=transaction_cost)
+        if opt["summary"]:
+            s = opt["summary"]
+            o1, o2, o3, o4 = st.columns(4)
+            o1.metric("OOS Optimized Return", f"{s['annualized_return']:.2%}")
+            o2.metric("OOS Optimized Sharpe", "—" if s["sharpe"] is None else f"{s['sharpe']:.2f}")
+            o3.metric("OOS Volatility", f"{s['annualized_volatility']:.2%}")
+            o4.metric("Benchmark Sharpe", "—" if s["benchmark_sharpe"] is None else f"{s['benchmark_sharpe']:.2f}")
+            eq = opt["equity"].reset_index().rename(columns={opt["equity"].index.name or "index": "Date"})
+            eq_long = eq.melt(id_vars=["Date"], var_name="Series", value_name="Growth of $1")
+            fig = px.line(eq_long, x="Date", y="Growth of $1", color="Series", title="Minimum-variance portfolio vs equal weight")
+            fig.update_layout(height=360)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.dataframe(opt["blocks"].style.format({"Test Return": "{:.2%}", "Benchmark Return": "{:.2%}", "Turnover": "{:.2f}"}), use_container_width=True, hide_index=True)
+            st.markdown("#### Re-estimated portfolio weights")
+            st.dataframe(opt["weights"].style.format("{:.2%}"), use_container_width=True)
+            st.caption("At each rebalance, weights are estimated from the preceding training window only. The first test-day return includes the configured transaction cost. This is a research backtest, not an investment recommendation.")
+        else:
+            st.info("Insufficient observations for true portfolio walk-forward optimization. Increase the dataset lookback or reduce the training window.")
+
+        st.markdown("#### Portfolio stress testing")
+        stress_shocks = st.multiselect("Portfolio shocks", [-0.05, -0.10, -0.20, -0.30], default=[-0.10, -0.20], format_func=lambda x: f"{x:.0%}", key="portfolio_stress")
+        stress = portfolio_stress_matrix({asset: price_map[asset] for asset in portfolio_assets}, weights, stress_shocks)
+        if not stress.empty:
+            st.dataframe(stress.style.format({"Portfolio Loss": "{:.2%}"}), use_container_width=True, hide_index=True)
+            st.caption("Stress results are deterministic sensitivity scenarios. Common shocks apply to the whole portfolio; asset-specific shocks apply only to the named asset while other positions are unchanged.")
 
     st.markdown("### ML volatility regime prediction")
     st.caption("Chronological out-of-sample classification of the next 21-trading-day volatility regime. Thresholds are estimated from the training sample only; the persistence baseline uses current volatility as a simple benchmark.")
@@ -182,33 +196,26 @@ def render():
     else:
         ml_metrics = ml_result["evaluations"].copy()
         st.dataframe(ml_metrics.style.format({col: "{:.2%}" for col in ["accuracy", "balanced_accuracy", "macro_precision", "macro_recall", "macro_f1"]}), use_container_width=True, hide_index=True)
-
         best_model = ml_metrics.sort_values("balanced_accuracy", ascending=False).iloc[0]
         m1, m2, m3 = st.columns(3)
         m1.metric("Best test balanced accuracy", f"{best_model['balanced_accuracy']:.2%}")
         m2.metric("Best model", str(best_model["Model"]))
         m3.metric("Test observations", f"{ml_result['test_observations']:,}")
-
         pred = ml_result["predictions"].reset_index().rename(columns={ml_result["predictions"].index.name or "index": "Date"})
         pred_long = pred.melt(id_vars=["Date"], var_name="Series", value_name="Regime")
         fig = px.scatter(pred_long, x="Date", y="Series", color="Regime", title=f"Predicted vs realized volatility regimes — {ml_asset}")
         fig.update_traces(marker={"size": 7})
         fig.update_layout(height=360)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
         model_choice = st.selectbox("Confusion matrix model", ["Logistic regression", "Random forest"], key="ml_cm_model")
         cm = ml_result["confusion_matrices"][model_choice]
-        cm_display = cm.copy()
-        cm_display.index.name = "Actual"
-        cm_display.columns.name = "Predicted"
+        cm_display = cm.copy(); cm_display.index.name = "Actual"; cm_display.columns.name = "Predicted"
         st.dataframe(cm_display, use_container_width=True)
-
         importance = ml_result["feature_importance"]
         if not importance.empty:
             fig = px.bar(importance, x="Importance", y="Feature", orientation="h", title="Random forest feature importance")
             fig.update_layout(height=320)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
         with st.expander("ML methodology & reproducibility"):
             st.json(ml_result["methodology"])
             st.write(f"Training observations: {ml_result['train_observations']:,}. Test observations: {ml_result['test_observations']:,}. Training end: {ml_result['train_end']}. Test start: {ml_result['test_start']}.")
@@ -222,13 +229,14 @@ def render():
         "look_ahead_control": "Signals are shifted one trading day before returns are realized",
         "training_selection": "Strategy selection is based on net training Sharpe after transaction costs",
         "regime_analysis": "Volatility-regime conditioning is reported ex-post and does not influence test-period selection",
-        "portfolio_validation": "Fixed user-specified weights compared with an equal-weight benchmark on aligned daily returns",
+        "portfolio_validation": "Fixed weights plus sequential long-only minimum-variance re-estimation compared with an equal-weight benchmark",
+        "portfolio_optimizer": "Minimum-variance weights estimated independently in each training window; long-only and normalized",
+        "portfolio_stress": "Deterministic common and asset-specific downside shock sensitivity",
         "ml_regime_prediction": "Chronological out-of-sample logistic regression and random forest classification of forward volatility regimes",
         "ml_threshold_control": "33rd/67th regime thresholds estimated from training targets only",
         "transaction_cost": "User-selected proportional cost per unit turnover",
     })
     st.json(methodology)
-
     csv = results.to_csv(index=False).encode("utf-8")
     st.download_button("Download experiment results (CSV)", csv, "ng_finance_pro_research_results.csv", "text/csv")
     st.caption("Research outputs are designed for empirical analysis and model validation. They are not personalized investment advice. Monte Carlo results use a fixed seed (42) for reproducibility.")
