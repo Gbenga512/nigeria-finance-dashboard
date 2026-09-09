@@ -103,16 +103,22 @@ def risk_ratios(returns: pd.Series, risk_free_rate: float = 0.0) -> dict[str, fl
     return {"sharpe": float(excess.mean() / clean.std(ddof=1) * np.sqrt(252)) if annual_vol else None, "sortino": float(excess.mean() * 252 / downside) if downside else None, "calmar": float((annual_return - risk_free_rate) / max_dd) if max_dd else None}
 
 
+def _normalized_weights(weights: dict[str, float], names: list[str]) -> pd.Series | None:
+    valid = pd.Series({k: float(weights[k]) for k in names if k in weights}, dtype=float)
+    valid = valid.replace([np.inf, -np.inf], np.nan).dropna()
+    if valid.empty or float(valid.sum()) == 0:
+        return None
+    return valid / valid.sum()
+
+
 def portfolio_walk_forward(price_map: dict[str, pd.Series], weights: dict[str, float], train_window: int = 252, test_window: int = 63, transaction_cost: float = 0.001) -> dict[str, object]:
     """Validate a fixed-weight portfolio through sequential out-of-sample blocks."""
     returns = align_returns(price_map)
     if returns.empty or train_window < 30 or test_window < 1 or transaction_cost < 0 or len(returns) <= train_window:
         return {"summary": {}, "blocks": pd.DataFrame(), "equity": pd.DataFrame()}
-    valid = {k: float(v) for k, v in weights.items() if k in returns.columns}
-    if not valid or sum(valid.values()) == 0:
+    w = _normalized_weights(weights, list(returns.columns))
+    if w is None:
         return {"summary": {}, "blocks": pd.DataFrame(), "equity": pd.DataFrame()}
-    w = pd.Series(valid, dtype=float)
-    w = w / w.sum()
     portfolio = returns[w.index].mul(w, axis=1).sum(axis=1)
     benchmark = returns.mean(axis=1)
     blocks, oos, bench_oos = [], [], []
@@ -123,9 +129,9 @@ def portfolio_walk_forward(price_map: dict[str, pd.Series], weights: dict[str, f
         if test.empty:
             break
         net = test.copy()
-        net.iloc[0] -= transaction_cost * float(w.abs().sum())
+        net.iloc[0] -= transaction_cost
         sharpe = float(net.mean() / net.std(ddof=1) * np.sqrt(252)) if len(net) > 1 and net.std(ddof=1) else 0.0
-        blocks.append({"Block": len(blocks) + 1, "Test Start": test.index[0], "Test End": test.index[-1], "Test Return": float((1 + net).prod() - 1), "Test Sharpe": sharpe, "Benchmark Return": float((1 + bench).prod() - 1), "Turnover": float(w.abs().sum())})
+        blocks.append({"Block": len(blocks) + 1, "Test Start": test.index[0], "Test End": test.index[-1], "Test Return": float((1 + net).prod() - 1), "Test Sharpe": sharpe, "Benchmark Return": float((1 + bench).prod() - 1), "Turnover": 1.0})
         oos.append(net)
         bench_oos.append(bench)
         start += test_window
@@ -137,3 +143,76 @@ def portfolio_walk_forward(price_map: dict[str, pd.Series], weights: dict[str, f
     summary = {"observations": int(len(oos_series)), "cumulative_return": float((1 + oos_series).prod() - 1), "annualized_return": float((1 + oos_series).prod() ** (252 / len(oos_series)) - 1), "annualized_volatility": float(oos_series.std(ddof=1) * np.sqrt(252)) if len(oos_series) > 1 else 0.0, "sharpe": ratios["sharpe"], "sortino": ratios["sortino"], "calmar": ratios["calmar"], "historical_var": historical_var(oos_series), "historical_es": historical_expected_shortfall(oos_series), "benchmark_cumulative_return": float((1 + bench_series).prod() - 1), "blocks": len(blocks)}
     equity = pd.DataFrame({"Portfolio": (1 + oos_series).cumprod(), "Equal Weight Benchmark": (1 + bench_series).cumprod()})
     return {"summary": summary, "blocks": pd.DataFrame(blocks), "equity": equity}
+
+
+def minimum_variance_weights(returns: pd.DataFrame) -> pd.Series | None:
+    """Compute long-only minimum-variance weights from the training covariance matrix."""
+    clean = returns.dropna(how="any")
+    if clean.shape[0] < 2 or clean.shape[1] < 1:
+        return None
+    cov = clean.cov().to_numpy()
+    cov = cov + np.eye(cov.shape[0]) * 1e-8
+    inv = np.linalg.pinv(cov)
+    ones = np.ones(cov.shape[0])
+    raw = inv @ ones
+    raw = np.maximum(raw, 0.0)
+    if raw.sum() == 0:
+        raw = ones
+    return pd.Series(raw / raw.sum(), index=clean.columns)
+
+
+def optimized_portfolio_walk_forward(price_map: dict[str, pd.Series], train_window: int = 252, test_window: int = 63, transaction_cost: float = 0.001) -> dict[str, object]:
+    """Walk-forward minimum-variance portfolio validation against equal weight."""
+    returns = align_returns(price_map)
+    if returns.empty or train_window < 30 or test_window < 1 or transaction_cost < 0 or len(returns) <= train_window:
+        return {"summary": {}, "blocks": pd.DataFrame(), "equity": pd.DataFrame(), "weights": pd.DataFrame()}
+    blocks, oos, benchmark_oos, weight_rows = [], [], [], []
+    start = train_window
+    while start < len(returns):
+        train = returns.iloc[start - train_window:start]
+        test = returns.iloc[start:start + test_window]
+        if test.empty:
+            break
+        w = minimum_variance_weights(train)
+        if w is None:
+            break
+        port = test[w.index].mul(w, axis=1).sum(axis=1)
+        net = port.copy()
+        net.iloc[0] -= transaction_cost
+        bench = test.mean(axis=1)
+        turnover = 0.0 if not weight_rows else float(np.abs(w - weight_rows[-1]["_weights"]).sum())
+        blocks.append({"Block": len(blocks) + 1, "Test Start": test.index[0], "Test End": test.index[-1], "Test Return": float((1 + net).prod() - 1), "Benchmark Return": float((1 + bench).prod() - 1), "Turnover": turnover})
+        oos.append(net)
+        benchmark_oos.append(bench)
+        weight_rows.append({"Block": len(blocks), "Date": test.index[0], "_weights": w, **{asset: float(w.get(asset, 0.0)) for asset in returns.columns}})
+        start += test_window
+    if not oos:
+        return {"summary": {}, "blocks": pd.DataFrame(), "equity": pd.DataFrame(), "weights": pd.DataFrame()}
+    oos_series = pd.concat(oos).sort_index()
+    bench_series = pd.concat(benchmark_oos).sort_index()
+    ratios = risk_ratios(oos_series)
+    bench_ratios = risk_ratios(bench_series)
+    summary = {"observations": int(len(oos_series)), "cumulative_return": float((1 + oos_series).prod() - 1), "annualized_return": float((1 + oos_series).prod() ** (252 / len(oos_series)) - 1), "annualized_volatility": float(oos_series.std(ddof=1) * np.sqrt(252)), "sharpe": ratios["sharpe"], "sortino": ratios["sortino"], "calmar": ratios["calmar"], "benchmark_cumulative_return": float((1 + bench_series).prod() - 1), "benchmark_sharpe": bench_ratios["sharpe"]}
+    weights_df = pd.DataFrame([{k: v for k, v in row.items() if k != "_weights"} for row in weight_rows]).set_index("Date")
+    equity = pd.DataFrame({"Minimum Variance": (1 + oos_series).cumprod(), "Equal Weight Benchmark": (1 + bench_series).cumprod()})
+    return {"summary": summary, "blocks": pd.DataFrame(blocks), "equity": equity, "weights": weights_df}
+
+
+def portfolio_stress_matrix(price_map: dict[str, pd.Series], weights: dict[str, float], shocks: list[float]) -> pd.DataFrame:
+    """Calculate deterministic portfolio losses under common and asset-specific shocks."""
+    if not shocks:
+        return pd.DataFrame()
+    returns = align_returns(price_map)
+    if returns.empty:
+        return pd.DataFrame()
+    w = _normalized_weights(weights, list(returns.columns))
+    if w is None:
+        return pd.DataFrame()
+    rows = []
+    for shock in shocks:
+        rows.append({"Scenario": f"Common shock {shock:.0%}", "Portfolio Loss": float(-shock) if shock < 0 else 0.0})
+    for asset in w.index:
+        for shock in shocks:
+            loss = max(0.0, -float(w[asset] * shock))
+            rows.append({"Scenario": f"{asset} shock {shock:.0%}", "Portfolio Loss": loss})
+    return pd.DataFrame(rows)
