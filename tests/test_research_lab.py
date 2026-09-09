@@ -1,7 +1,15 @@
 import pandas as pd
 import pytest
 
-from analytics.research_lab import methodology_record, research_metrics, research_summary, run_research_experiment
+from analytics.research_lab import (
+    methodology_record,
+    research_metrics,
+    research_summary,
+    rolling_volatility,
+    run_research_experiment,
+    scenario_loss,
+    scenario_matrix,
+)
 
 
 def test_research_metrics_contains_validation_outputs():
@@ -27,6 +35,23 @@ def test_methodology_record_is_reproducible():
     record = methodology_record(0.95, "2y", 252)
     assert record["reproducibility_seed"] == 42
     assert record["annualization"] == "252 trading days"
+    assert "scenario_analysis" in record
+
+
+def test_scenario_analysis_is_deterministic():
+    prices = pd.Series([100, 101, 99], dtype=float)
+    assert scenario_loss(prices, -0.10) == pytest.approx(0.10)
+    assert scenario_loss(prices, 0.10) is None
+    matrix = scenario_matrix({"USD/NGN": prices}, [-0.05, -0.10])
+    assert len(matrix) == 2
+    assert set(matrix["Asset"]) == {"USD/NGN"}
+
+
+def test_rolling_volatility_returns_series():
+    prices = pd.Series(range(100, 140), dtype=float)
+    result = rolling_volatility(prices, window=5)
+    assert isinstance(result, pd.Series)
+    assert result.notna().sum() > 0
 
 
 def test_empty_summary():
