@@ -7,7 +7,7 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
-from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness
+from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace
 from ng_ui import inject_styles, brand, footer
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
@@ -16,7 +16,7 @@ brand()
 st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
 page = st.sidebar.radio("Workspace", [
-    "📊  Dashboard", "🧠  Intelligence Centre", "🧪  Quant Lab", "🔬  Research & Backtesting",
+    "📊  Dashboard", "🧠  Intelligence Centre", "📁  Finance Data Workspace", "🧪  Quant Lab", "🔬  Research & Backtesting",
     "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk",
     "📰  News Terminal", "💧  Treasury Dashboard", "↔️  Bank Reconciliation", "📑  Budget Analysis",
     "📋  Financial Statement Analyzer", "📄  Executive Reports",
@@ -43,6 +43,8 @@ if page == "📊  Dashboard":
     dashboard.render(snapshot, insight)
 elif page == "🧠  Intelligence Centre":
     intelligence.render(snapshot)
+elif page == "📁  Finance Data Workspace":
+    data_workspace.render()
 elif page == "🧪  Quant Lab":
     quant_lab.render(MARKET_SYMBOLS)
 elif page == "🔬  Research & Backtesting":
