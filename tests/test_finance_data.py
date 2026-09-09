@@ -45,7 +45,7 @@ def test_validation_detects_invalid_dates_and_duplicates():
         "reference": ["1", "2", "2"],
         "entity": ["Main"] * 3,
     })
-    result = validate_finance_data(frame)
+    result = validate_finance_data(frame, "transactions")
     assert result.valid is False
     assert result.missing_dates == 2
     assert result.duplicate_rows == 1
