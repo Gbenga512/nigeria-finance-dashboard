@@ -54,3 +54,5 @@ def render() -> None:
         st.success(f"Confirmed and posted {posted:,} transaction(s).")
         st.session_state.pop("sme_import_review", None)
         st.rerun()
+
+# Deployment-sync marker: forces Streamlit Cloud to rebuild from the current main branch.
