@@ -39,6 +39,4 @@ def test_regime_ml_experiment_is_chronological_and_reproducible():
         "Random Forest Prediction",
         "Persistence Baseline",
     }
-    assert result["feature_importance"]["Importance"].sum() == np.testing.assert_allclose(
-        result["feature_importance"]["Importance"].sum(), 1.0, rtol=1e-6
-    )
+    np.testing.assert_allclose(result["feature_importance"]["Importance"].sum(), 1.0, rtol=1e-6)
