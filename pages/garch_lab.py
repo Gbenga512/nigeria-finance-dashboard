@@ -4,12 +4,13 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from analytics.garch import clean_returns, ewma_volatility, fit_garch11
+from analytics.volatility_benchmark import benchmark_volatility_models
 from services.market_data import close_series, fetch_market_data
 
 
 def render(symbols: dict[str, str]):
     st.title("GARCH Volatility Lab")
-    st.caption("Conditional-volatility modelling for quantitative risk research and MScFE empirical work.")
+    st.caption("Conditional-volatility modelling, out-of-sample benchmarking and quantitative risk research.")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -62,6 +63,58 @@ def render(symbols: dict[str, str]):
     fig.add_trace(go.Histogram(x=residuals, nbinsx=40, name="Standardized residuals"))
     fig.update_layout(title="Standardized Residual Distribution", xaxis_title="Residual", yaxis_title="Frequency")
     st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Out-of-sample volatility model benchmark")
+    st.caption("Historical rolling variance, EWMA and GARCH(1,1) are compared using strictly chronological one-step-ahead forecasts. GARCH is refit periodically using information available before each forecast date.")
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        train_window = st.selectbox("Training window", [120, 252, 504], index=1, key="vol_bench_train")
+    with b2:
+        test_window = st.selectbox("OOS test observations", [63, 126, 252], index=1, key="vol_bench_test")
+    with b3:
+        garch_refit = st.selectbox("GARCH refit frequency", [5, 21, 42], index=1, key="vol_bench_refit")
+
+    benchmark = benchmark_volatility_models(
+        returns,
+        train_window=train_window,
+        test_window=test_window,
+        historical_window=21,
+        ewma_lambda=0.94,
+        garch_refit=garch_refit,
+    )
+    if not benchmark["available"]:
+        st.info(benchmark["reason"])
+    else:
+        winner = benchmark["winner"]
+        st.success(f"Lowest mean QLIKE: {winner}. Lower QLIKE indicates better volatility forecast accuracy under this evaluation design.")
+        summary = benchmark["summary"]
+        st.dataframe(summary.style.format({"Mean_QLIKE": "{:.4f}", "RMSE": "{:.6f}", "MAE": "{:.6f}"}), use_container_width=True, hide_index=True)
+
+        detail = benchmark["detail"].copy()
+        forecast_plot = detail.pivot(index="Observation", columns="Model", values="Forecast Variance")
+        plot = go.Figure()
+        for model in forecast_plot.columns:
+            plot.add_trace(go.Scatter(x=forecast_plot.index, y=forecast_plot[model], name=model))
+        plot.update_layout(title="OOS Forecast Variance", xaxis_title="Sequential OOS observation", yaxis_title="Daily variance forecast", hovermode="x unified")
+        st.plotly_chart(plot, use_container_width=True)
+
+        with st.expander("Benchmark methodology"):
+            st.markdown("""
+**Evaluation design**
+
+- The first `training_window` observations are reserved for model estimation.
+- Each subsequent forecast is generated before observing that day's return.
+- Historical volatility uses the trailing 21 observations.
+- EWMA uses λ = 0.94 and updates recursively.
+- GARCH(1,1) is estimated by Gaussian quasi-maximum likelihood and refit at the configured frequency.
+- Forecast quality is evaluated against the next day's squared return as a noisy realized-variance proxy.
+- **QLIKE** is the primary ranking metric; RMSE and MAE are supplementary diagnostics.
+
+This is an empirical model-comparison experiment, not a claim that the winning model will always outperform in live markets.
+""")
+
+        export_benchmark = detail.to_csv(index=False)
+        st.download_button("Download OOS benchmark observations (CSV)", export_benchmark, f"volatility_benchmark_{asset.replace('/', '-')}.csv", "text/csv")
 
     with st.expander("Model methodology and assumptions"):
         st.markdown("""
