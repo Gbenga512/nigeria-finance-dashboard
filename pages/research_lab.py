@@ -4,6 +4,7 @@ import streamlit as st
 
 from analytics.backtesting import walk_forward_backtest
 from analytics.factors import factor_features, factor_signal
+from analytics.portfolio_risk import portfolio_returns, risk_ratios
 from analytics.research_lab import methodology_record, research_summary, rolling_volatility, run_research_experiment, scenario_matrix
 from config.settings import MARKET_SYMBOLS
 from services.market_data import close_series, fetch_market_data
@@ -97,7 +98,7 @@ def render():
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
     st.markdown("### Walk-forward strategy validation")
-    st.caption("The engine selects a simple candidate strategy using training data only, then evaluates it on the next unseen test block. Signals are shifted one trading day to prevent look-ahead bias.")
+    st.caption("The engine selects a candidate using training data only, then evaluates the selected strategy on unseen observations. Signals are shifted one trading day to prevent look-ahead bias.")
     w1, w2, w3 = st.columns(3)
     with w1:
         train_window = st.selectbox("Training window", [126, 252, 504], index=1, key="wf_train")
@@ -129,15 +130,47 @@ def render():
 
         st.markdown("#### Walk-forward blocks")
         blocks = wf["blocks"]
-        st.dataframe(blocks.style.format({
-            "Training Sharpe": "{:.2f}",
-            "Test Return": "{:.2%}",
-            "Test Sharpe": "{:.2f}",
-            "Test Max Drawdown": "{:.2%}",
-            "Benchmark Return": "{:.2%}",
-            "Turnover": "{:.2f}",
-        }), use_container_width=True, hide_index=True)
-        st.caption("Candidate set: momentum, mean-reversion, and buy-and-hold. Strategy selection uses only information available before each test block; transaction costs are deducted when the position changes.")
+        st.dataframe(blocks.style.format({"Training Sharpe": "{:.2f}", "Test Return": "{:.2%}", "Test Sharpe": "{:.2f}", "Test Max Drawdown": "{:.2%}", "Benchmark Return": "{:.2%}", "Turnover": "{:.2f}"}), use_container_width=True, hide_index=True)
+        st.caption("Candidate set: momentum, mean-reversion, and buy-and-hold. Selection is net of transaction costs and uses only the training sample.")
+
+        regime_table = wf.get("regime_summary", pd.DataFrame())
+        if not regime_table.empty:
+            st.markdown("#### Regime-conditioned OOS performance")
+            st.dataframe(regime_table.style.format({"Cumulative Return": "{:.2%}", "Annualized Volatility": "{:.2%}", "Sharpe": "{:.2f}", "Hit Rate": "{:.2%}"}), use_container_width=True, hide_index=True)
+            st.caption("Regimes are classified from rolling volatility as an ex-post diagnostic; they are not used to select the strategy during the test period.")
+
+    st.markdown("### Portfolio walk-forward validation")
+    st.caption("A fixed-weight multi-asset portfolio is evaluated on aligned daily returns. The benchmark uses equal weights; portfolio weights are normalized automatically.")
+    portfolio_assets = st.multiselect("Portfolio assets", list(price_map.keys()), default=list(price_map.keys()), key="wf_port_assets")
+    if portfolio_assets:
+        weight_cols = st.columns(len(portfolio_assets))
+        weights = {}
+        for idx, asset in enumerate(portfolio_assets):
+            with weight_cols[idx]:
+                weights[asset] = st.number_input(f"{asset} weight", min_value=0.0, max_value=1.0, value=1.0 / len(portfolio_assets), step=0.05, key=f"wf_weight_{asset}")
+        portfolio = portfolio_returns({asset: price_map[asset] for asset in portfolio_assets}, weights)
+        equal_weights = {asset: 1.0 for asset in portfolio_assets}
+        benchmark_portfolio = portfolio_returns({asset: price_map[asset] for asset in portfolio_assets}, equal_weights)
+        if not portfolio.empty and not benchmark_portfolio.empty:
+            p_metrics = risk_ratios(portfolio)
+            b_metrics = risk_ratios(benchmark_portfolio)
+            p1, p2, p3, p4 = st.columns(4)
+            p1.metric("Portfolio Sharpe", "—" if p_metrics["sharpe"] is None else f"{p_metrics['sharpe']:.2f}")
+            p2.metric("Portfolio Sortino", "—" if p_metrics["sortino"] is None else f"{p_metrics['sortino']:.2f}")
+            p3.metric("Equal-weight Sharpe", "—" if b_metrics["sharpe"] is None else f"{b_metrics['sharpe']:.2f}")
+            p4.metric("Equal-weight Sortino", "—" if b_metrics["sortino"] is None else f"{b_metrics['sortino']:.2f}")
+            comparison = pd.DataFrame([{
+                "Portfolio": "Configured portfolio",
+                "Sharpe": p_metrics["sharpe"],
+                "Sortino": p_metrics["sortino"],
+                "Calmar": p_metrics["calmar"],
+            }, {
+                "Portfolio": "Equal-weight benchmark",
+                "Sharpe": b_metrics["sharpe"],
+                "Sortino": b_metrics["sortino"],
+                "Calmar": b_metrics["calmar"],
+            }])
+            st.dataframe(comparison.style.format({"Sharpe": "{:.2f}", "Sortino": "{:.2f}", "Calmar": "{:.2f}"}), use_container_width=True, hide_index=True)
 
     st.markdown("### Methodology & reproducibility")
     methodology = methodology_record(confidence, lookback, window)
@@ -145,6 +178,9 @@ def render():
         "walk_forward_validation": "Expanding training window with sequential out-of-sample test blocks",
         "candidate_strategies": "Momentum, mean-reversion, buy-and-hold",
         "look_ahead_control": "Signals are shifted one trading day before returns are realized",
+        "training_selection": "Strategy selection is based on net training Sharpe after transaction costs",
+        "regime_analysis": "Volatility-regime conditioning is reported ex-post and does not influence test-period selection",
+        "portfolio_validation": "Fixed user-specified weights compared with an equal-weight benchmark on aligned daily returns",
         "transaction_cost": "User-selected proportional cost per unit turnover",
     })
     st.json(methodology)
