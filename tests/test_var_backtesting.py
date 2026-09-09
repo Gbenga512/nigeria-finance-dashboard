@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from analytics.var_backtesting import backtest_var, christoffersen_independence, kupiec_pof
+from analytics.var_backtesting import backtest_var, christoffersen_independence, kupiec_pof, rolling_historical_var
 
 
 def test_kupiec_accepts_reasonable_exception_rate():
@@ -26,3 +26,11 @@ def test_full_backtest_aligns_series():
     assert int(result["exceptions"].sum()) == 1
     assert result["kupiec"]["observations"] == 5
     assert np.isfinite(result["conditional_coverage"]["statistic"])
+
+
+def test_rolling_historical_var_is_one_step_ahead():
+    returns = pd.Series(np.linspace(-0.05, 0.05, 60))
+    forecast = rolling_historical_var(returns, 0.95, window=30)
+    assert len(forecast) == 30
+    assert forecast.index[0] == returns.index[30]
+    assert (forecast >= 0).all()
