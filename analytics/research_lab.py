@@ -51,6 +51,32 @@ def run_research_experiment(price_map: dict[str, pd.Series], confidence: float =
     return pd.DataFrame(rows)[columns]
 
 
+def scenario_loss(prices: pd.Series, shock: float = -0.05) -> float | None:
+    """Estimate one-period percentage loss under an explicit price shock."""
+    clean = pd.to_numeric(prices, errors="coerce").dropna()
+    if clean.empty or shock > 0:
+        return None
+    return max(0.0, -float(shock))
+
+
+def scenario_matrix(price_map: dict[str, pd.Series], shocks: list[float]) -> pd.DataFrame:
+    """Apply common one-period downside scenarios to each asset for sensitivity analysis."""
+    rows = []
+    for asset, prices in price_map.items():
+        for shock in shocks:
+            loss = scenario_loss(prices, shock)
+            rows.append({"Asset": asset, "Shock": shock, "Scenario Loss": loss})
+    return pd.DataFrame(rows)
+
+
+def rolling_volatility(prices: pd.Series, window: int = 21, periods_per_year: int = 252) -> pd.Series:
+    """Compute annualized rolling volatility from daily simple returns."""
+    returns = returns_from_prices(prices)
+    if window < 2:
+        return pd.Series(dtype="float64")
+    return returns.rolling(window).std(ddof=1) * np.sqrt(periods_per_year)
+
+
 def research_summary(results: pd.DataFrame, confidence: float) -> str:
     if results.empty:
         return "No research result is available because no valid historical dataset was supplied."
@@ -72,6 +98,8 @@ def methodology_record(confidence: float, lookback: str, backtest_window: int) -
         "annualization": "252 trading days",
         "historical_model": "Empirical lower-tail VaR and Expected Shortfall",
         "monte_carlo_model": "Normal simulation calibrated to sample mean and volatility",
+        "scenario_analysis": "Explicit one-period downside price shocks",
+        "rolling_volatility": "21-trading-day rolling standard deviation annualized by sqrt(252)",
         "reproducibility_seed": 42,
         "risk_free_rate": "0% for current risk-adjusted ratios",
     }
