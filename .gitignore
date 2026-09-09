@@ -8,3 +8,5 @@ venv/
 .streamlit/secrets.toml
 .DS_Store
 *.log
+data/*.db
+data/*.db-*
