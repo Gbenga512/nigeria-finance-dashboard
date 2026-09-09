@@ -7,7 +7,7 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
-from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk
+from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk, data_controls
 from ng_ui import inject_styles, brand, footer
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
@@ -16,7 +16,7 @@ brand()
 st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
 page = st.sidebar.radio("Workspace", [
-    "📊  Dashboard", "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre", "📁  Finance Data Workspace", "🧪  Quant Lab", "🔬  Research & Backtesting",
+    "📊  Dashboard", "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre", "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab", "🔬  Research & Backtesting",
     "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk",
     "📰  News Terminal", "💧  Treasury Dashboard", "↔️  Bank Reconciliation", "📑  Budget Analysis",
     "📋  Financial Statement Analyzer", "📄  Executive Reports",
@@ -47,6 +47,8 @@ elif page == "🎯  Integrated Risk Command Centre":
     integrated_risk.render(snapshot)
 elif page == "📁  Finance Data Workspace":
     data_workspace.render()
+elif page == "🧾  Financial Data Controls":
+    data_controls.render()
 elif page == "🧪  Quant Lab":
     quant_lab.render(MARKET_SYMBOLS)
 elif page == "🔬  Research & Backtesting":
