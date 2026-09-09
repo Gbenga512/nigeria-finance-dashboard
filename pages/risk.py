@@ -4,8 +4,8 @@ import plotly.graph_objects as go
 
 from config.settings import MARKET_SYMBOLS
 from services.market_data import fetch_market_data, close_series
-from analytics.quant_risk import returns_from_prices, risk_metrics, risk_model_comparison, var_backtest, maximum_drawdown, stress_loss
-from analytics.var_backtesting import backtest_var
+from analytics.quant_risk import returns_from_prices, risk_metrics, risk_model_comparison, var_backtest, stress_loss
+from analytics.var_backtesting import backtest_var, rolling_historical_var
 from ng_ui import hero
 
 LOOKBACKS = {"6 months": "6mo", "1 year": "1y", "2 years": "2y", "5 years": "5y"}
@@ -30,7 +30,9 @@ def render(snapshot: pd.DataFrame):
         return
     returns = returns_from_prices(prices)
     metrics = risk_metrics(prices, confidence)
-    rolling = var_backtest(returns, confidence, window=min(252, max(30, len(returns) // 2)))
+    rolling_window = min(252, max(30, len(returns) // 2))
+    rolling = var_backtest(returns, confidence, window=rolling_window)
+    dynamic_forecast = rolling_historical_var(returns, confidence, window=rolling_window)
 
     st.markdown("### Risk dashboard")
     k1, k2, k3, k4, k5 = st.columns(5)
@@ -88,20 +90,22 @@ def render(snapshot: pd.DataFrame):
             st.success("Observed rolling VaR exception frequency is within the current monitoring threshold.")
 
     st.markdown("### Formal VaR validation")
-    formal = backtest_var(returns, pd.Series(metrics["historical_var"], index=returns.index), confidence)
-    # The formal test above evaluates the fixed historical VaR threshold. The rolling test remains the primary dynamic monitoring series.
-    f1, f2, f3 = st.columns(3)
-    f1.metric("Kupiec POF p-value", f"{formal['kupiec']['p_value']:.4f}")
-    f2.metric("Christoffersen independence", f"{formal['independence']['p_value']:.4f}")
-    f3.metric("Conditional coverage p-value", f"{formal['conditional_coverage']['p_value']:.4f}")
-    formal_table = pd.DataFrame([
-        {"Test": "Kupiec POF", "Statistic": formal["kupiec"]["statistic"], "p-value": formal["kupiec"]["p_value"], "Reject at 5%": formal["kupiec"]["reject_5pct"]},
-        {"Test": "Christoffersen Independence", "Statistic": formal["independence"]["statistic"], "p-value": formal["independence"]["p_value"], "Reject at 5%": formal["independence"]["reject_5pct"]},
-        {"Test": "Christoffersen Conditional Coverage", "Statistic": formal["conditional_coverage"]["statistic"], "p-value": formal["conditional_coverage"]["p_value"], "Reject at 5%": formal["conditional_coverage"]["reject_5pct"]},
-    ])
-    st.dataframe(formal_table, use_container_width=True, hide_index=True)
-    st.caption("Formal tests assess unconditional coverage, exception independence and joint conditional coverage. A high p-value means the null hypothesis is not rejected; it does not prove that a VaR model is correct.")
+    if dynamic_forecast.empty:
+        st.info("Not enough observations for a dynamic rolling VaR validation window.")
+    else:
+        formal = backtest_var(returns, dynamic_forecast, confidence)
+        f1, f2, f3 = st.columns(3)
+        f1.metric("Kupiec POF p-value", f"{formal['kupiec']['p_value']:.4f}")
+        f2.metric("Christoffersen independence", f"{formal['independence']['p_value']:.4f}")
+        f3.metric("Conditional coverage p-value", f"{formal['conditional_coverage']['p_value']:.4f}")
+        formal_table = pd.DataFrame([
+            {"Test": "Kupiec POF", "Statistic": formal["kupiec"]["statistic"], "p-value": formal["kupiec"]["p_value"], "Reject at 5%": formal["kupiec"]["reject_5pct"]},
+            {"Test": "Christoffersen Independence", "Statistic": formal["independence"]["statistic"], "p-value": formal["independence"]["p_value"], "Reject at 5%": formal["independence"]["reject_5pct"]},
+            {"Test": "Christoffersen Conditional Coverage", "Statistic": formal["conditional_coverage"]["statistic"], "p-value": formal["conditional_coverage"]["p_value"], "Reject at 5%": formal["conditional_coverage"]["reject_5pct"]},
+        ])
+        st.dataframe(formal_table, use_container_width=True, hide_index=True)
+        st.caption("Formal tests now use genuine one-step-ahead rolling historical VaR forecasts. A high p-value means the null hypothesis is not rejected; it does not prove that the VaR model is correct.")
 
     with st.expander("Methodology and assumptions"):
-        st.write("Historical VaR uses the empirical lower-tail return quantile. Expected Shortfall averages losses beyond that tail threshold. Parametric measures assume approximately normal returns, while Monte Carlo currently simulates from a calibrated normal distribution. Rolling VaR monitoring compares observed exceptions with the theoretical tail probability. Kupiec POF tests exception frequency; Christoffersen tests independence and conditional coverage. Results are single-asset percentage risk measures, not investment advice or guaranteed loss limits.")
+        st.write("Historical VaR uses the empirical lower-tail return quantile. Expected Shortfall averages losses beyond that tail threshold. Parametric measures assume approximately normal returns, while Monte Carlo currently simulates from a calibrated normal distribution. Rolling VaR forecasts use only observations available before each forecast date, avoiding look-ahead bias. Kupiec POF tests exception frequency; Christoffersen tests independence and conditional coverage. Results are single-asset percentage risk measures, not investment advice or guaranteed loss limits.")
         st.caption(f"Instrument: {asset} ({symbol}) • Lookback: {lookback_label} • Observations: {len(returns)} • Confidence: {confidence:.1%}")
