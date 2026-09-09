@@ -11,25 +11,12 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    confusion_matrix,
-    f1_score,
-    precision_score,
-    recall_score,
-)
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 REGIMES = ["Low volatility", "Normal volatility", "High volatility"]
-FEATURE_COLUMNS = [
-    "return_1d",
-    "momentum_5d",
-    "momentum_21d",
-    "volatility_21d",
-    "trend_21d",
-]
+FEATURE_COLUMNS = ["return_1d", "momentum_5d", "momentum_21d", "volatility_21d", "trend_21d"]
 
 
 def _clean_prices(prices: pd.Series) -> pd.Series:
@@ -37,16 +24,8 @@ def _clean_prices(prices: pd.Series) -> pd.Series:
     return clean[clean > 0]
 
 
-def build_regime_dataset(
-    prices: pd.Series,
-    feature_window: int = 21,
-    horizon: int = 21,
-) -> pd.DataFrame:
-    """Build lagged features and a forward realized-volatility target.
-
-    The forward target is intentionally shifted into the future. No future values
-    enter the feature columns.
-    """
+def build_regime_dataset(prices: pd.Series, feature_window: int = 21, horizon: int = 21) -> pd.DataFrame:
+    """Build lagged features and a strictly forward realized-volatility target."""
     clean = _clean_prices(prices)
     if len(clean) < max(feature_window, horizon) + 20 or feature_window < 2 or horizon < 2:
         return pd.DataFrame()
@@ -59,8 +38,9 @@ def build_regime_dataset(
     features["volatility_21d"] = returns.rolling(feature_window).std(ddof=1) * np.sqrt(252)
     features["trend_21d"] = clean / clean.rolling(21).mean() - 1.0
 
+    # At time t, the label uses returns t+1 ... t+horizon.
     future_vol = returns.rolling(horizon).std(ddof=1) * np.sqrt(252)
-    features["future_volatility"] = future_vol.shift(-(horizon - 1))
+    features["future_volatility"] = future_vol.shift(-horizon)
     return features.dropna()
 
 
@@ -79,15 +59,7 @@ def label_regimes(volatility: pd.Series, thresholds: tuple[float, float]) -> pd.
     """Map realized volatility into low/normal/high regimes using fixed thresholds."""
     low, high = thresholds
     clean = pd.to_numeric(volatility, errors="coerce")
-    return pd.Series(
-        np.select(
-            [clean <= low, clean >= high],
-            [REGIMES[0], REGIMES[2]],
-            default=REGIMES[1],
-        ),
-        index=volatility.index,
-        dtype="object",
-    )
+    return pd.Series(np.select([clean <= low, clean >= high], [REGIMES[0], REGIMES[2]], default=REGIMES[1]), index=volatility.index, dtype="object")
 
 
 def _metrics(y_true: pd.Series, y_pred: np.ndarray, labels: list[str]) -> dict:
@@ -104,19 +76,8 @@ def _persistence_predictions(current_vol: pd.Series, thresholds: tuple[float, fl
     return label_regimes(current_vol, thresholds)
 
 
-def regime_ml_experiment(
-    prices: pd.Series,
-    test_fraction: float = 0.30,
-    feature_window: int = 21,
-    horizon: int = 21,
-    random_state: int = 42,
-) -> dict:
-    """Run chronological out-of-sample regime prediction.
-
-    Logistic regression is the transparent baseline model and a constrained random
-    forest is a nonlinear comparator. The final test sample is never used to fit
-    preprocessing, thresholds, or model parameters.
-    """
+def regime_ml_experiment(prices: pd.Series, test_fraction: float = 0.30, feature_window: int = 21, horizon: int = 21, random_state: int = 42) -> dict:
+    """Run chronological out-of-sample regime prediction."""
     dataset = build_regime_dataset(prices, feature_window, horizon)
     if dataset.empty or not 0.15 <= test_fraction <= 0.45:
         return {"available": False, "reason": "Insufficient data or invalid test fraction."}
@@ -138,21 +99,8 @@ def regime_ml_experiment(
 
     X_train = train[FEATURE_COLUMNS]
     X_test = test[FEATURE_COLUMNS]
-
-    logistic = Pipeline(
-        [
-            ("scaler", StandardScaler()),
-            ("model", LogisticRegression(max_iter=1000, random_state=random_state)),
-        ]
-    )
-    forest = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=5,
-        min_samples_leaf=5,
-        class_weight="balanced",
-        random_state=random_state,
-        n_jobs=-1,
-    )
+    logistic = Pipeline([("scaler", StandardScaler()), ("model", LogisticRegression(max_iter=1000, random_state=random_state))])
+    forest = RandomForestClassifier(n_estimators=200, max_depth=5, min_samples_leaf=5, class_weight="balanced", random_state=random_state, n_jobs=-1)
     models = {"Logistic regression": logistic, "Random forest": forest}
     evaluations = []
     predictions = {}
@@ -165,30 +113,23 @@ def regime_ml_experiment(
         metrics = _metrics(y_test, pred.to_numpy(), REGIMES)
         metrics["Model"] = name
         evaluations.append(metrics)
-        matrices[name] = pd.DataFrame(
-            confusion_matrix(y_test, pred, labels=REGIMES), index=REGIMES, columns=REGIMES
-        )
+        matrices[name] = pd.DataFrame(confusion_matrix(y_test, pred, labels=REGIMES), index=REGIMES, columns=REGIMES)
 
     baseline_pred = _persistence_predictions(test["volatility_21d"], thresholds)
     baseline = _metrics(y_test, baseline_pred.to_numpy(), REGIMES)
     baseline["Model"] = "Persistence baseline"
     evaluations.append(baseline)
 
-    prediction_frame = pd.DataFrame(
-        {
-            "Actual Regime": y_test,
-            "Logistic Prediction": predictions["Logistic regression"],
-            "Random Forest Prediction": predictions["Random forest"],
-            "Persistence Baseline": baseline_pred,
-        },
-        index=test.index,
-    )
+    prediction_frame = pd.DataFrame({
+        "Actual Regime": y_test,
+        "Logistic Prediction": predictions["Logistic regression"],
+        "Random Forest Prediction": predictions["Random forest"],
+        "Persistence Baseline": baseline_pred,
+    }, index=test.index)
 
     importance = pd.DataFrame()
     if hasattr(forest, "feature_importances_"):
-        importance = pd.DataFrame(
-            {"Feature": FEATURE_COLUMNS, "Importance": forest.feature_importances_}
-        ).sort_values("Importance", ascending=False)
+        importance = pd.DataFrame({"Feature": FEATURE_COLUMNS, "Importance": forest.feature_importances_}).sort_values("Importance", ascending=False)
 
     return {
         "available": True,
@@ -199,9 +140,7 @@ def regime_ml_experiment(
         "test_start": test.index[0],
         "horizon": horizon,
         "thresholds": {"low": thresholds[0], "high": thresholds[1]},
-        "evaluations": pd.DataFrame(evaluations)[
-            ["Model", "accuracy", "balanced_accuracy", "macro_precision", "macro_recall", "macro_f1"]
-        ],
+        "evaluations": pd.DataFrame(evaluations)[["Model", "accuracy", "balanced_accuracy", "macro_precision", "macro_recall", "macro_f1"]],
         "confusion_matrices": matrices,
         "predictions": prediction_frame,
         "feature_importance": importance,
