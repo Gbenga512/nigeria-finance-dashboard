@@ -1,54 +1,75 @@
-# NG Finance Pro 📈
+# NG Finance Pro 📊
 
-## Overview
+**Quantitative financial intelligence and decision-support platform for finance teams, treasury professionals and quantitative-finance research.**
 
-NG Finance Pro is a Streamlit-based financial intelligence and treasury decision-support platform for accountants, treasury professionals, finance managers and analysts.
+NG Finance Pro brings market data, accounting analytics, treasury monitoring, reconciliation, budgeting and quantitative risk modelling into one Streamlit workspace. The application is designed to operate in zero-cost mode without paid APIs; optional AI and news integrations can be enabled later.
 
-The project combines Nigerian market monitoring, treasury analytics, budget variance analysis, bank reconciliation, financial statement ratios and an optional AI analyst into one application.
+## Current capabilities
 
-## Version 2.1 Upgrade
+### Finance operations
+- CSV/XLSX finance-data ingestion with canonical schema normalization
+- Explainable dataset classification for bank statements, general ledgers, budgets, transactions and financial statements
+- Data-quality validation, duplicate detection and missing-date checks
+- Bank reconciliation with configurable date tolerance
+- Budget-versus-actual variance analysis
+- Financial statement analysis and core liquidity, profitability and solvency ratios
+- Management and executive reporting
+- Treasury cash runway and liquidity monitoring
 
-The repository has been upgraded from a monolithic MVP into a modular architecture with separate configuration, services, analytics and UI layers.
+### Market and risk analytics
+- Market monitoring for USD/NGN, BTC/USD, ETH/USD, gold and crude oil
+- Historical, parametric-normal and Monte Carlo VaR/Expected Shortfall
+- Maximum drawdown, downside volatility and stress scenarios
+- Rolling historical VaR backtesting
+- Kupiec proportion-of-failures testing
+- Christoffersen independence and conditional-coverage testing
+- GARCH(1,1) Gaussian QMLE volatility modelling and one-step forecasting
+- EWMA volatility benchmark
+- Portfolio correlation, component risk, minimum-variance optimization and walk-forward validation
+- Liquidity runway, liquidity stress and USD/NGN FX exposure stress
+- Research and backtesting workflows for out-of-sample evaluation and reproducibility
+- ML-based volatility-regime experiments
 
-### What is now implemented
+### Intelligence layer
+- Deterministic market-intelligence signals with transparent thresholds
+- Optional OpenAI analyst integration
+- Rule-based fallback when no OpenAI API key is configured
+- Optional NewsAPI integration with graceful failure when no key is supplied
 
-- Live market snapshot for USD/NGN, BTC, ETH, gold and crude oil through yFinance
-- Cached market-data service with graceful failure handling
-- Financial news terminal with optional NewsAPI integration
-- Optional OpenAI financial analyst with a rule-based fallback when no API key is configured
-- Interactive treasury dashboard with adjusted available cash and estimated cash runway
-- Real one-to-one bank reconciliation using amount matching and configurable date tolerance
-- Budget vs actual upload and variance analysis
-- Financial statement analyzer for standardized CSV/XLSX extracts
-- Core liquidity, profitability, solvency and cash-flow ratios
-- Financial health score from 0–100 across five dimensions
-- Market-derived volatility risk indicators
-- Automated unit tests and GitHub Actions CI
+## Research orientation
 
-## Financial Statement Input Format
+NG Finance Pro is structured as more than a dashboard. Its quantitative layer supports reproducible empirical research through explicit assumptions, train/test or walk-forward evaluation, model comparison, stress testing and statistical validation.
 
-Upload CSV or XLSX files with two columns such as:
+A suitable MScFE research direction is:
+
+> **Development and Evaluation of a Quantitative Financial Intelligence System for Market Risk, Liquidity Risk and Decision Support in Emerging Markets**
+
+The research layer can compare historical, parametric, Monte Carlo, EWMA and GARCH volatility/risk approaches and evaluate forecasts out of sample. Nigeria/emerging-market instruments can be compared with global assets without fabricating local observations.
+
+## Data principles
+
+The platform does not fabricate Nigerian financial observations. Analytics consume data supplied by the caller or retrieved from configured market/news services. Scenario shocks and heuristic management thresholds are explicitly labelled as assumptions rather than historical facts.
+
+## Input formats
+
+### General finance data
+
+CSV/XLSX files can contain common headers such as:
 
 ```text
-Account,Amount
-Cash & Cash Equivalents,100000000
-Current Assets,250000000
-Current Liabilities,150000000
-Total Assets,600000000
-Total Liabilities,250000000
-Total Equity,350000000
-Total Debt,120000000
+Transaction Date,GL Account,Narration,Debit,Credit,Currency,Reference
+2026-01-02,Cash,Customer receipt,0,150000,NGN,TX001
 ```
 
-The analyzer supports Balance Sheet, Income Statement and Cash Flow extracts. The line-item names should match the items shown in the application for the most complete ratio coverage.
+The Finance Data Workspace maps common headers into the canonical schema:
 
-## Bank Reconciliation Input Format
+`date, account, description, debit, credit, amount, currency, category, reference, entity`
 
-Each file should contain identifiable Date and Amount columns. Optional description/narration/reference columns are also supported. The engine matches each bank transaction to at most one cashbook transaction using amount equality to two decimal places and a configurable date tolerance.
+### Bank reconciliation
 
-## Budget Input Format
+Bank and cashbook files should contain identifiable date and amount fields. Description, narration and reference fields are supported. Matching uses transaction amounts and configurable date tolerance.
 
-CSV/XLSX files should contain:
+### Budget analysis
 
 ```text
 Department,Budget,Actual
@@ -57,90 +78,73 @@ HR,3000000,3500000
 Operations,8000000,7600000
 ```
 
-## Configuration
-
-For Streamlit Cloud, add secrets for:
-
-```toml
-NEWS_API_KEY = "your-newsapi-key"
-OPENAI_API_KEY = "your-openai-api-key"
-```
-
-`OPENAI_API_KEY` is optional. Without it, the application uses a deterministic rule-based analyst rather than pretending that static text is AI-generated.
-
 ## Architecture
 
 ```text
 NG Finance Pro
-├── app.py
-├── config/
-│   └── settings.py
-├── services/
+│
+├── app.py                         Application shell and navigation
+├── config/                        Configuration and market symbols
+├── services/                      External data services
 │   ├── market_data.py
 │   ├── news_service.py
 │   └── ai_service.py
-├── analytics/
+│
+├── analytics/                     Quantitative and accounting engines
+│   ├── finance_data.py            Ingestion, classification, validation
 │   ├── ratios.py
 │   ├── financial_health.py
-│   └── reconciliation.py
-├── pages/
-│   ├── dashboard.py
-│   ├── markets.py
-│   ├── risk.py
-│   ├── treasury.py
 │   ├── reconciliation.py
-│   ├── budget.py
-│   └── financial_statements.py
-└── tests/
-    └── test_analytics.py
+│   ├── quant_risk.py              VaR, ES, drawdown, stress
+│   ├── var_backtesting.py         Formal VaR validation
+│   ├── garch.py                   GARCH/EWMA volatility
+│   ├── portfolio_risk.py          Portfolio risk and optimization
+│   ├── liquidity_fx.py            Liquidity and FX risk
+│   ├── backtesting.py             OOS strategy validation
+│   ├── ml_regime.py               ML regime experiments
+│   └── ...
+│
+├── pages/                         Streamlit analytical workspaces
+├── tests/                         Automated quantitative/unit tests
+├── docs/                          Research and methodology documentation
+└── .github/workflows/ci.yml       Continuous integration
 ```
 
-## Technology Stack
+## Technology stack
 
 - Python 3.11
 - Streamlit
-- Pandas
+- Pandas / NumPy
+- SciPy / scikit-learn
 - Plotly
 - yFinance
-- OpenAI API (optional)
-- NewsAPI (optional)
 - OpenPyXL
 - Pytest
 - GitHub Actions
+- OpenAI API — optional
+- NewsAPI — optional
 
-## Roadmap
+## Cost model
 
-### V2.2 — Data & Persistence
-- SQLite/PostgreSQL database layer
-- Company and user records
-- Persistent treasury transactions
-- Audit trail
+The core application is designed to remain functional without paid APIs. OpenAI and NewsAPI credentials are optional enhancements, not runtime requirements for the core finance and quantitative workflows.
 
-### V2.3 — Treasury Intelligence
-- Cash-flow forecasting
-- Liquidity stress testing
-- Cash concentration analysis
-- Bank/account-level treasury reporting
+## Quality and reproducibility
 
-### V2.4 — Advanced Financial Analytics
-- PDF annual-report extraction
-- Multi-period ratio trends
-- Peer/company comparison
-- Valuation models
-- Credit-risk indicators
+The repository uses automated tests through GitHub Actions. Quantitative modules include deterministic tests where randomness is involved, explicit parameterization, and methodology documentation. Formal VaR validation uses one-step-ahead rolling forecasts to reduce look-ahead bias.
 
-### V2.5 — Investment & AI Research
-- Structured investment research assistant
-- Nigerian listed-company screening
-- Portfolio analytics
-- Explainable AI research summaries
+## Development roadmap
+
+1. **Research-grade risk validation** — expand rolling forecast comparisons across Historical VaR, EWMA and GARCH.
+2. **Emerging-market empirical layer** — compare Nigeria-focused and global instruments using consistent metrics.
+3. **Forecast evaluation** — add forecast-error, coverage, calibration and stability diagnostics where statistically appropriate.
+4. **Finance operating layer** — strengthen persistent finance-data workflows, audit trails and management reporting.
+5. **Decision intelligence** — connect validated quantitative signals to transparent management actions rather than opaque recommendations.
 
 ## Author
 
-Gbenga Olufisayo
-
+**Gbenga Olufisayo**  
 Accountant | Treasury Professional | Financial Engineering Enthusiast
 
-## Live Application
+## Live application
 
-https://nigeria-finance-dashboard-5brcqb4w4rsryneyh4tyeq.streamlit.app/
+urlNG Finance Pro Streamlit applicationhttps://nigeria-finance-dashboard-5brcqb4w4rsryneyh4tyeq.streamlit.app/
