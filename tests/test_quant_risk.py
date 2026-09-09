@@ -6,7 +6,10 @@ from analytics.quant_risk import (
     historical_expected_shortfall,
     historical_var,
     maximum_drawdown,
+    monte_carlo_expected_shortfall,
+    monte_carlo_var,
     returns_from_prices,
+    worst_window_loss,
 )
 
 
@@ -28,6 +31,20 @@ def test_expected_shortfall_is_not_below_var():
     var = historical_var(returns, 0.80)
     es = historical_expected_shortfall(returns, 0.80)
     assert es >= var
+
+
+def test_monte_carlo_var_and_es_are_reproducible():
+    returns = pd.Series([-0.03, -0.01, 0.005, 0.012, -0.007] * 50)
+    var_1 = monte_carlo_var(returns, 0.95, simulations=5000, seed=42)
+    var_2 = monte_carlo_var(returns, 0.95, simulations=5000, seed=42)
+    es = monte_carlo_expected_shortfall(returns, 0.95, simulations=5000, seed=42)
+    assert var_1 == pytest.approx(var_2)
+    assert es >= var_1
+
+
+def test_worst_window_loss():
+    returns = pd.Series([0.01, -0.10, -0.05, 0.02])
+    assert worst_window_loss(returns, 2) == pytest.approx(0.145)
 
 
 def test_maximum_drawdown():
