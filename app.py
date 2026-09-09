@@ -7,7 +7,7 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
-from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx
+from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research
 from ng_ui import inject_styles, brand, footer
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
@@ -17,7 +17,7 @@ st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
 page = st.sidebar.radio("Workspace", [
     "📊  Dashboard", "🧠  Intelligence Centre", "📁  Finance Data Workspace", "🧪  Quant Lab", "🔬  Research & Backtesting",
-    "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk",
+    "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk",
     "📰  News Terminal", "💧  Treasury Dashboard", "↔️  Bank Reconciliation", "📑  Budget Analysis",
     "📋  Financial Statement Analyzer", "📄  Executive Reports",
 ], label_visibility="visible")
@@ -29,7 +29,7 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-if page in {"📊  Dashboard", "🧠  Intelligence Centre", "🧪  Quant Lab", "🔬  Research & Backtesting", "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk", "📰  News Terminal", "📄  Executive Reports"}:
+if page in {"📊  Dashboard", "🧠  Intelligence Centre", "🧪  Quant Lab", "🔬  Research & Backtesting", "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk", "📰  News Terminal", "📄  Executive Reports"}:
     st_autorefresh(interval=300000, key="market_refresh")
 
 snapshot = market_snapshot()
@@ -49,6 +49,8 @@ elif page == "🧪  Quant Lab":
     quant_lab.render(MARKET_SYMBOLS)
 elif page == "🔬  Research & Backtesting":
     research_lab.render()
+elif page == "🌍  Emerging Markets Research":
+    research.render()
 elif page == "📉  GARCH Volatility Lab":
     garch_lab.render(MARKET_SYMBOLS)
 elif page == "💱  Liquidity & FX Risk":
