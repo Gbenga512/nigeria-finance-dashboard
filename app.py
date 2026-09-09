@@ -8,7 +8,7 @@ from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk
-from ui import inject_styles, brand, footer
+from ng_ui import inject_styles, brand, footer
 
 
 st.set_page_config(
