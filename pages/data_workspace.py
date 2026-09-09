@@ -1,9 +1,10 @@
-"""Intelligent finance data workspace for uploading, profiling, and validating datasets."""
+"""Intelligent finance data workspace for uploading, profiling, validating and controlling datasets."""
 
 from __future__ import annotations
 
 import streamlit as st
 
+from analytics.data_quality import control_summary, daily_control_totals
 from analytics.finance_data import (
     CANONICAL_COLUMNS,
     classify_dataset,
@@ -16,17 +17,12 @@ from analytics.finance_data import (
 
 def render() -> None:
     st.title("Finance Data Workspace")
-    st.caption("Bring company financial data into NG Finance Pro, identify its purpose, map it to a common schema, and validate it before analysis.")
+    st.caption("Bring company financial data into NG Finance Pro, validate it, identify control exceptions and prepare it for downstream analysis.")
 
-    uploaded = st.file_uploader(
-        "Upload financial data",
-        type=["csv", "xlsx"],
-        help="CSV and XLSX files are supported. Your file is processed for the current session only.",
-    )
+    uploaded = st.file_uploader("Upload financial data", type=["csv", "xlsx"], help="CSV and XLSX files are supported. Processing is session-based.")
     if uploaded is None:
         st.info("Upload a transaction, bank statement, budget, ledger, or financial-statement export to begin.")
-        st.markdown("**Supported dataset types:** Bank Statement • General Ledger • Budget • Transaction Export • Financial Statement")
-        st.markdown("**Expected finance fields:** date, account, description, debit, credit, amount, currency, category, reference, entity.")
+        st.markdown("**Supported:** Bank Statement • General Ledger • Budget • Transaction Export • Financial Statement")
         return
 
     try:
@@ -34,7 +30,6 @@ def render() -> None:
     except Exception as exc:
         st.error(f"Unable to read this file: {exc}")
         return
-
     if raw.empty:
         st.warning("The uploaded file contains no rows.")
         return
@@ -52,11 +47,8 @@ def render() -> None:
         st.caption("Why: " + " • ".join(profile.reasons))
     if profile.missing_required_fields:
         st.warning("Expected fields still missing: " + ", ".join(profile.missing_required_fields))
-    elif profile.dataset_type != "unknown":
-        st.success("The dataset has the core fields expected for its detected finance workflow.")
 
     st.subheader("3. Column mapping")
-    st.caption("Review the automatically suggested mapping. You can override any field before validation.")
     suggested = suggest_column_mapping(raw.columns.tolist())
     mapping: dict[str, str] = {}
     for canonical in CANONICAL_COLUMNS:
@@ -76,18 +68,34 @@ def render() -> None:
     c2.metric("Duplicate rows", f"{result.duplicate_rows:,}")
     c3.metric("Missing dates", f"{result.missing_dates:,}")
     c4.metric("Numeric issues", f"{result.numeric_issues:,}")
-
-    if result.errors:
-        for error in result.errors:
-            st.error(error)
-    if result.warnings:
-        for warning in result.warnings:
-            st.warning(warning)
+    for error in result.errors:
+        st.error(error)
+    for warning in result.warnings:
+        st.warning(warning)
     if result.valid:
-        st.success(f"Dataset passed structural validation and is ready for: {profile.route}.")
+        st.success("Structural validation passed. The dataset can proceed to control analytics.")
 
-    st.subheader("5. Canonical dataset")
+    controls = control_summary(normalized)
+    st.subheader("5. Control & anomaly intelligence")
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Quality score", f"{controls['quality']['score']:.1f}/100")
+    k2.metric("Duplicate records", f"{len(controls['duplicates']):,}")
+    k3.metric("Amount anomalies", f"{len(controls['anomalies']):,}")
+    for observation in controls["observations"]:
+        st.caption("• " + observation)
+
+    if not controls["anomalies"].empty:
+        with st.expander("Review flagged amount anomalies"):
+            st.dataframe(controls["anomalies"].head(100), use_container_width=True, hide_index=True)
+    if not controls["duplicates"].empty:
+        with st.expander("Review duplicate records"):
+            st.dataframe(controls["duplicates"].head(100), use_container_width=True, hide_index=True)
+
+    totals = daily_control_totals(normalized)
+    if not totals.empty:
+        with st.expander("Daily control totals"):
+            st.dataframe(totals, use_container_width=True, hide_index=True)
+
+    st.subheader("6. Canonical dataset")
     st.dataframe(normalized.head(100), use_container_width=True)
-
-    csv = normalized.to_csv(index=False).encode("utf-8")
-    st.download_button("Download normalized CSV", csv, file_name="ng_finance_normalized.csv", mime="text/csv")
+    st.download_button("Download normalized CSV", normalized.to_csv(index=False).encode("utf-8"), file_name="ng_finance_normalized.csv", mime="text/csv")
