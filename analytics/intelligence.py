@@ -13,13 +13,17 @@ def build_market_intelligence(snapshot: pd.DataFrame) -> dict:
         }
 
     work = snapshot.copy()
+    if "Change %" not in work.columns:
+        return {"overall": "Data unavailable", "score": None, "alerts": [], "movers": pd.DataFrame(), "breadth": {"gainers": 0, "decliners": 0, "flat": 0}}
     work["Change %"] = pd.to_numeric(work["Change %"], errors="coerce")
     valid = work.dropna(subset=["Change %"]).copy()
-    alerts = []
+    if valid.empty:
+        return {"overall": "Data unavailable", "score": None, "alerts": [], "movers": pd.DataFrame(), "breadth": {"gainers": 0, "decliners": 0, "flat": 0}}
 
+    alerts = []
     for _, row in valid.iterrows():
         change = float(row["Change %"])
-        asset = str(row["Asset"])
+        asset = str(row.get("Asset", "Unknown asset"))
         if abs(change) >= 3:
             severity = "High"
             message = f"{asset} moved {change:+.2f}% today — review exposure and liquidity sensitivity."
@@ -33,13 +37,13 @@ def build_market_intelligence(snapshot: pd.DataFrame) -> dict:
     gainers = int((valid["Change %"] > 0).sum())
     decliners = int((valid["Change %"] < 0).sum())
     flat = int((valid["Change %"] == 0).sum())
-    avg_abs = float(valid["Change %"].abs().mean()) if not valid.empty else 0.0
+    avg_abs = float(valid["Change %"].abs().mean())
     high_count = sum(a["Severity"] == "High" for a in alerts)
     moderate_count = sum(a["Severity"] == "Moderate" for a in alerts)
     score = min(100, round(high_count * 25 + moderate_count * 12 + avg_abs * 5))
     overall = "High attention" if score >= 60 else "Elevated" if score >= 30 else "Normal"
 
-    movers = valid[["Asset", "Change %"]].copy().sort_values("Change %", ascending=False)
+    movers = valid[[c for c in ["Asset", "Change %"] if c in valid.columns]].copy().sort_values("Change %", ascending=False)
     movers["Direction"] = movers["Change %"].map(lambda x: "Gainer" if x > 0 else "Decliner" if x < 0 else "Flat")
 
     return {
@@ -53,7 +57,7 @@ def build_market_intelligence(snapshot: pd.DataFrame) -> dict:
 
 def management_summary(intelligence: dict) -> str:
     if intelligence.get("score") is None:
-        return "No management signal can be generated until market data is available."
+        return "No management signal can be generated until market data is available. Data is currently unavailable."
     breadth = intelligence["breadth"]
     if intelligence["overall"] == "High attention":
         tone = "Several material market movements warrant management review."
