@@ -2,6 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from analytics.backtesting import walk_forward_backtest
 from analytics.factors import factor_features, factor_signal
 from analytics.research_lab import methodology_record, research_summary, rolling_volatility, run_research_experiment, scenario_matrix
 from config.settings import MARKET_SYMBOLS
@@ -95,8 +96,58 @@ def render():
         fig.update_layout(yaxis_tickformat=".1%", height=360)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
+    st.markdown("### Walk-forward strategy validation")
+    st.caption("The engine selects a simple candidate strategy using training data only, then evaluates it on the next unseen test block. Signals are shifted one trading day to prevent look-ahead bias.")
+    w1, w2, w3 = st.columns(3)
+    with w1:
+        train_window = st.selectbox("Training window", [126, 252, 504], index=1, key="wf_train")
+    with w2:
+        test_window = st.selectbox("Test window", [21, 63, 126], index=1, key="wf_test")
+    with w3:
+        transaction_cost = st.selectbox("Transaction cost", [0.0005, 0.0010, 0.0020], index=1, format_func=lambda x: f"{x:.2%}", key="wf_cost")
+
+    wf_asset = st.selectbox("Asset for walk-forward validation", list(price_map.keys()), key="wf_asset")
+    with st.spinner("Running out-of-sample walk-forward validation..."):
+        wf = walk_forward_backtest(price_map[wf_asset], train_window, test_window, transaction_cost)
+
+    if not wf["summary"]:
+        st.warning("Insufficient observations for the selected training window. Increase the dataset lookback or reduce the training window.")
+    else:
+        summary = wf["summary"]
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric("OOS Annualized Return", f"{summary['annualized_return']:.2%}")
+        k2.metric("OOS Sharpe", f"{summary['sharpe']:.2f}")
+        k3.metric("OOS Max Drawdown", f"{summary['maximum_drawdown']:.2%}")
+        k4.metric("OOS Alpha", f"{summary['oos_alpha']:.2%}")
+
+        equity = wf["equity"].reset_index()
+        equity = equity.rename(columns={equity.columns[0]: "Date"})
+        equity_long = equity.melt(id_vars=["Date"], var_name="Series", value_name="Growth of $1")
+        fig = px.line(equity_long, x="Date", y="Growth of $1", color="Series", title=f"Out-of-sample equity curve — {wf_asset}")
+        fig.update_layout(height=380)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown("#### Walk-forward blocks")
+        blocks = wf["blocks"]
+        st.dataframe(blocks.style.format({
+            "Training Sharpe": "{:.2f}",
+            "Test Return": "{:.2%}",
+            "Test Sharpe": "{:.2f}",
+            "Test Max Drawdown": "{:.2%}",
+            "Benchmark Return": "{:.2%}",
+            "Turnover": "{:.2f}",
+        }), use_container_width=True, hide_index=True)
+        st.caption("Candidate set: momentum, mean-reversion, and buy-and-hold. Strategy selection uses only information available before each test block; transaction costs are deducted when the position changes.")
+
     st.markdown("### Methodology & reproducibility")
-    st.json(methodology_record(confidence, lookback, window))
+    methodology = methodology_record(confidence, lookback, window)
+    methodology.update({
+        "walk_forward_validation": "Expanding training window with sequential out-of-sample test blocks",
+        "candidate_strategies": "Momentum, mean-reversion, buy-and-hold",
+        "look_ahead_control": "Signals are shifted one trading day before returns are realized",
+        "transaction_cost": "User-selected proportional cost per unit turnover",
+    })
+    st.json(methodology)
 
     csv = results.to_csv(index=False).encode("utf-8")
     st.download_button("Download experiment results (CSV)", csv, "ng_finance_pro_research_results.csv", "text/csv")
