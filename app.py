@@ -7,7 +7,7 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
-from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports
+from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence
 from ng_ui import inject_styles, brand, footer
 
 
@@ -27,6 +27,7 @@ page = st.sidebar.radio(
     "Workspace",
     [
         "📊  Dashboard",
+        "🧠  Intelligence Centre",
         "📈  Markets",
         "🤖  AI Insights",
         "🛡️  Risk Monitor",
@@ -50,7 +51,7 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-if page in {"📊  Dashboard", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📰  News Terminal", "📄  Executive Reports"}:
+if page in {"📊  Dashboard", "🧠  Intelligence Centre", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📰  News Terminal", "📄  Executive Reports"}:
     st_autorefresh(interval=300000, key="market_refresh")
 
 snapshot = market_snapshot()
@@ -63,6 +64,9 @@ st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
 if page == "📊  Dashboard":
     insight, _ = generate_ai_insight(snapshot)
     dashboard.render(snapshot, insight)
+
+elif page == "🧠  Intelligence Centre":
+    intelligence.render(snapshot)
 
 elif page == "📈  Markets":
     markets.render(MARKET_SYMBOLS)
