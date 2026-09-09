@@ -23,11 +23,13 @@ def annualized_volatility(returns: pd.Series, periods_per_year: int = 252) -> fl
 
 
 def historical_var(returns: pd.Series, confidence: float = 0.95) -> float | None:
-    """Historical VaR as a positive loss fraction using the empirical lower-tail quantile."""
+    """Historical VaR as a positive loss fraction using a conservative empirical quantile."""
     clean = _clean_returns(returns)
     if clean.empty or not 0 < confidence < 1:
         return None
-    return max(0.0, -float(np.quantile(clean.to_numpy(), 1 - confidence, method="linear")))
+    # Lower interpolation selects an observed tail loss rather than inventing a value between observations.
+    quantile = np.quantile(clean.to_numpy(), 1 - confidence, method="lower")
+    return max(0.0, -float(quantile))
 
 
 def historical_expected_shortfall(returns: pd.Series, confidence: float = 0.95) -> float | None:
