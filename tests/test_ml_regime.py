@@ -17,7 +17,10 @@ def test_regime_dataset_uses_forward_target():
     prices = synthetic_prices()
     dataset = build_regime_dataset(prices, feature_window=21, horizon=21)
     assert not dataset.empty
-    assert set(["return_1d", "momentum_5d", "momentum_21d", "volatility_21d", "trend_21d", "future_volatility"]).issubset(dataset.columns)
+    assert set([
+        "return_1d", "momentum_5d", "momentum_21d",
+        "volatility_21d", "trend_21d", "future_volatility"
+    ]).issubset(dataset.columns)
     assert dataset.index.max() < prices.index.max()
 
 
@@ -27,16 +30,31 @@ def test_label_regimes_has_three_categories():
     assert list(labels) == ["Low volatility", "Normal volatility", "High volatility"]
 
 
-def test_regime_ml_experiment_is_chronological_and_reproducible():
+def test_regime_ml_experiment_locks_test_set_and_is_reproducible():
     prices = synthetic_prices()
     result = regime_ml_experiment(prices, test_fraction=0.30, random_state=42)
     assert result["available"] is True
-    assert result["train_end"] < result["test_start"]
-    assert result["evaluations"]["Model"].tolist() == ["Logistic regression", "Random forest", "Persistence baseline"]
+    assert result["train_end"] < result["validation_end"] < result["test_start"]
+    assert result["validation_observations"] >= 30
+    assert result["test_observations"] >= 30
+    assert result["selected_model"] in {"Logistic regression", "Random forest"}
+    assert result["evaluations"]["Model"].tolist() == [result["selected_model"], "Persistence baseline"]
     assert set(result["predictions"].columns) == {
         "Actual Regime",
-        "Logistic Prediction",
-        "Random Forest Prediction",
+        "Selected Model Prediction",
         "Persistence Baseline",
     }
-    np.testing.assert_allclose(result["feature_importance"]["Importance"].sum(), 1.0, rtol=1e-6)
+
+    repeat = regime_ml_experiment(prices, test_fraction=0.30, random_state=42)
+    assert repeat["selected_model"] == result["selected_model"]
+    np.testing.assert_allclose(
+        result["evaluations"].iloc[:, 1:].to_numpy(dtype=float),
+        repeat["evaluations"].iloc[:, 1:].to_numpy(dtype=float),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+    if result["selected_model"] == "Random forest":
+        np.testing.assert_allclose(
+            result["feature_importance"]["Importance"].sum(), 1.0, rtol=1e-6
+        )
