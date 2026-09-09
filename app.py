@@ -7,7 +7,7 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
-from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab
+from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk
 from ng_ui import inject_styles, brand, footer
 
 
@@ -32,6 +32,7 @@ page = st.sidebar.radio(
         "📈  Markets",
         "🤖  AI Insights",
         "🛡️  Risk Monitor",
+        "📐  Portfolio Risk",
         "📰  News Terminal",
         "💧  Treasury Dashboard",
         "↔️  Bank Reconciliation",
@@ -52,7 +53,7 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-if page in {"📊  Dashboard", "🧠  Intelligence Centre", "🧪  Quant Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📰  News Terminal", "📄  Executive Reports"}:
+if page in {"📊  Dashboard", "🧠  Intelligence Centre", "🧪  Quant Lab", "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk", "📰  News Terminal", "📄  Executive Reports"}:
     st_autorefresh(interval=300000, key="market_refresh")
 
 snapshot = market_snapshot()
@@ -88,6 +89,9 @@ elif page == "🤖  AI Insights":
 
 elif page == "🛡️  Risk Monitor":
     risk.render(snapshot)
+
+elif page == "📐  Portfolio Risk":
+    portfolio_risk.render()
 
 elif page == "📰  News Terminal":
     st.title("Financial News Terminal")
