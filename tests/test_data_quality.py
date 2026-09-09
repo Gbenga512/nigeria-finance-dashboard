@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from analytics.data_quality import amount_anomalies, control_summary, daily_control_totals, quality_score
