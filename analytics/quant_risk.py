@@ -1,4 +1,4 @@
-"""Quantitative risk analytics used by NG Finance Pro and the MScFE research layer."""
+"""Quantitative risk analytics for NG Finance Pro and the MScFE research layer."""
 
 from __future__ import annotations
 
@@ -25,20 +25,62 @@ def historical_var(returns: pd.Series, confidence: float = 0.95) -> float | None
     clean = pd.to_numeric(returns, errors="coerce").dropna()
     if clean.empty or not 0 < confidence < 1:
         return None
-    quantile = float(clean.quantile(1 - confidence))
-    return max(0.0, -quantile)
+    return max(0.0, -float(clean.quantile(1 - confidence)))
 
 
 def historical_expected_shortfall(returns: pd.Series, confidence: float = 0.95) -> float | None:
-    """Historical Expected Shortfall (average loss beyond the VaR threshold)."""
+    """Historical Expected Shortfall: mean loss in the tail beyond VaR."""
     clean = pd.to_numeric(returns, errors="coerce").dropna()
     if clean.empty or not 0 < confidence < 1:
         return None
     threshold = float(clean.quantile(1 - confidence))
     tail = clean[clean <= threshold]
-    if tail.empty:
-        return max(0.0, -threshold)
-    return max(0.0, -float(tail.mean()))
+    return max(0.0, -float(tail.mean())) if not tail.empty else max(0.0, -threshold)
+
+
+def parametric_var(returns: pd.Series, confidence: float = 0.95) -> float | None:
+    """Normal/parametric VaR using sample mean and standard deviation."""
+    clean = pd.to_numeric(returns, errors="coerce").dropna()
+    if len(clean) < 2 or not 0 < confidence < 1:
+        return None
+    # Standard normal quantiles for common confidence levels; linear interpolation otherwise.
+    z_table = {0.90: 1.2815515655, 0.95: 1.6448536269, 0.975: 1.9599639845, 0.99: 2.3263478746}
+    if confidence in z_table:
+        z = z_table[confidence]
+    else:
+        grid = np.array(sorted(z_table))
+        vals = np.array([z_table[x] for x in grid])
+        z = float(np.interp(confidence, grid, vals))
+    mu = float(clean.mean())
+    sigma = float(clean.std(ddof=1))
+    return max(0.0, -(mu - z * sigma))
+
+
+def parametric_expected_shortfall(returns: pd.Series, confidence: float = 0.95) -> float | None:
+    """Normal-distribution Expected Shortfall."""
+    clean = pd.to_numeric(returns, errors="coerce").dropna()
+    if len(clean) < 2 or not 0 < confidence < 1:
+        return None
+    z_table = {0.90: 1.2815515655, 0.95: 1.6448536269, 0.975: 1.9599639845, 0.99: 2.3263478746}
+    if confidence not in z_table:
+        grid = np.array(sorted(z_table))
+        z = float(np.interp(confidence, grid, np.array([z_table[x] for x in grid])))
+    else:
+        z = z_table[confidence]
+    sigma = float(clean.std(ddof=1))
+    mu = float(clean.mean())
+    pdf_z = np.exp(-0.5 * z * z) / np.sqrt(2 * np.pi)
+    return max(0.0, -(mu - sigma * pdf_z / (1 - confidence)))
+
+
+def monte_carlo_var(returns: pd.Series, confidence: float = 0.95, simulations: int = 10000, seed: int = 42) -> float | None:
+    """Monte Carlo VaR using a normal model calibrated to observed returns."""
+    clean = pd.to_numeric(returns, errors="coerce").dropna()
+    if len(clean) < 2 or not 0 < confidence < 1 or simulations < 100:
+        return None
+    rng = np.random.default_rng(seed)
+    simulated = rng.normal(float(clean.mean()), float(clean.std(ddof=1)), simulations)
+    return max(0.0, -float(np.quantile(simulated, 1 - confidence)))
 
 
 def maximum_drawdown(prices: pd.Series) -> float | None:
@@ -47,8 +89,7 @@ def maximum_drawdown(prices: pd.Series) -> float | None:
     if clean.empty:
         return None
     running_peak = clean.cummax()
-    drawdown = clean / running_peak - 1.0
-    return max(0.0, -float(drawdown.min()))
+    return max(0.0, -float((clean / running_peak - 1.0).min()))
 
 
 def downside_volatility(returns: pd.Series, periods_per_year: int = 252) -> float | None:
@@ -61,7 +102,7 @@ def downside_volatility(returns: pd.Series, periods_per_year: int = 252) -> floa
 
 
 def stress_loss(returns: pd.Series, shock: float = -0.05) -> float | None:
-    """Apply a deterministic one-period market shock."""
+    """Loss implied by a deterministic one-period shock."""
     clean = pd.to_numeric(returns, errors="coerce").dropna()
     if clean.empty:
         return None
@@ -76,9 +117,37 @@ def risk_metrics(prices: pd.Series, confidence: float = 0.95) -> dict[str, float
         "annualized_volatility": annualized_volatility(returns),
         "historical_var": historical_var(returns, confidence),
         "expected_shortfall": historical_expected_shortfall(returns, confidence),
+        "parametric_var": parametric_var(returns, confidence),
+        "parametric_expected_shortfall": parametric_expected_shortfall(returns, confidence),
+        "monte_carlo_var": monte_carlo_var(returns, confidence),
         "maximum_drawdown": maximum_drawdown(prices),
         "downside_volatility": downside_volatility(returns),
     }
+
+
+def var_backtest(returns: pd.Series, confidence: float = 0.95, window: int = 252) -> dict[str, float | int | None]:
+    """Rolling historical VaR backtest with exception count and rate."""
+    clean = pd.to_numeric(returns, errors="coerce").dropna().reset_index(drop=True)
+    if len(clean) <= window or not 0 < confidence < 1:
+        return {"observations": 0, "exceptions": 0, "exception_rate": None, "expected_rate": 1 - confidence}
+    exceptions = 0
+    forecasts = 0
+    for i in range(window, len(clean)):
+        var = historical_var(clean.iloc[i-window:i], confidence)
+        if var is not None and float(clean.iloc[i]) < -var:
+            exceptions += 1
+        forecasts += 1
+    return {"observations": forecasts, "exceptions": exceptions, "exception_rate": exceptions / forecasts, "expected_rate": 1 - confidence}
+
+
+def risk_model_comparison(returns: pd.Series, confidence: float = 0.95, simulations: int = 10000) -> pd.DataFrame:
+    """Compare historical, parametric and Monte Carlo VaR/ES estimates."""
+    rows = [
+        {"Model": "Historical", "VaR": historical_var(returns, confidence), "Expected Shortfall": historical_expected_shortfall(returns, confidence)},
+        {"Model": "Parametric Normal", "VaR": parametric_var(returns, confidence), "Expected Shortfall": parametric_expected_shortfall(returns, confidence)},
+        {"Model": "Monte Carlo Normal", "VaR": monte_carlo_var(returns, confidence, simulations), "Expected Shortfall": None},
+    ]
+    return pd.DataFrame(rows)
 
 
 def risk_table(price_map: dict[str, pd.Series], confidence: float = 0.95) -> pd.DataFrame:
@@ -92,6 +161,7 @@ def risk_table(price_map: dict[str, pd.Series], confidence: float = 0.95) -> pd.
         return pd.DataFrame()
     columns = [
         "Asset", "observations", "annualized_volatility", "historical_var",
-        "expected_shortfall", "maximum_drawdown", "downside_volatility",
+        "expected_shortfall", "parametric_var", "parametric_expected_shortfall",
+        "monte_carlo_var", "maximum_drawdown", "downside_volatility",
     ]
     return pd.DataFrame(rows)[columns]
