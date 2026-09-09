@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-from ui import hero
+from ng_ui import hero
 
 
 def _asset_class(asset: str) -> str:
@@ -24,7 +24,6 @@ def render(snapshot: pd.DataFrame, insight: str):
         st.warning("Market data is temporarily unavailable. Please refresh shortly.")
         return
 
-    # Top-level market cards: compact enough for desktop, naturally stacked on mobile.
     cols = st.columns(min(5, len(snapshot)), gap="small")
     for col, (_, row) in zip(cols, snapshot.iterrows()):
         price = row["Price"]
@@ -49,29 +48,8 @@ def render(snapshot: pd.DataFrame, insight: str):
     with left:
         st.markdown("### Performance snapshot")
         chart_df = snapshot.dropna(subset=["Change %"]).copy().sort_values("Change %")
-        fig = go.Figure(
-            go.Bar(
-                x=chart_df["Change %"],
-                y=chart_df["Asset"],
-                orientation="h",
-                text=chart_df["Change %"].map(lambda x: f"{x:+.2f}%"),
-                textposition="outside",
-                hovertemplate="%{y}: %{x:+.2f}%<extra></extra>",
-                marker_line_width=0,
-            )
-        )
-        fig.update_layout(
-            height=340,
-            margin=dict(l=8, r=42, t=8, b=8),
-            xaxis_title="Daily change (%)",
-            yaxis_title=None,
-            showlegend=False,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#91a4bb"),
-            xaxis=dict(gridcolor="rgba(148,163,184,.10)", zerolinecolor="rgba(148,163,184,.18)"),
-            yaxis=dict(gridcolor="rgba(0,0,0,0)"),
-        )
+        fig = go.Figure(go.Bar(x=chart_df["Change %"], y=chart_df["Asset"], orientation="h", text=chart_df["Change %"].map(lambda x: f"{x:+.2f}%"), textposition="outside", hovertemplate="%{y}: %{x:+.2f}%<extra></extra>", marker_line_width=0))
+        fig.update_layout(height=340, margin=dict(l=8, r=42, t=8, b=8), xaxis_title="Daily change (%)", yaxis_title=None, showlegend=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#91a4bb"), xaxis=dict(gridcolor="rgba(148,163,184,.10)", zerolinecolor="rgba(148,163,184,.18)"), yaxis=dict(gridcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False, "responsive": True})
 
     with right:
@@ -83,28 +61,9 @@ def render(snapshot: pd.DataFrame, insight: str):
         net = up - down
         sentiment = "Positive" if net > 0 else "Negative" if net < 0 else "Balanced"
         sentiment_class = "ng-positive" if net > 0 else "ng-negative" if net < 0 else "ng-neutral"
-        st.markdown(
-            f"""
-            <div class="ng-card">
-                <div class="ng-card-title">Current breadth</div>
-                <div class="ng-card-value {sentiment_class}">{sentiment}</div>
-                <div class="ng-muted">{valid} tracked assets with available movement data</div>
-                <hr style="border-color:rgba(148,163,184,.10); margin:16px 0">
-                <div style="display:flex;justify-content:space-between">
-                    <span class="ng-positive">Gainers&nbsp; {up}</span>
-                    <span class="ng-neutral">Flat&nbsp; {flat}</span>
-                    <span class="ng-negative">Decliners&nbsp; {down}</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+        st.markdown(f"<div class=\"ng-card\"><div class=\"ng-card-title\">Current breadth</div><div class=\"ng-card-value {sentiment_class}\">{sentiment}</div><div class=\"ng-muted\">{valid} tracked assets with available movement data</div><hr style=\"border-color:rgba(148,163,184,.10); margin:16px 0\"><div style=\"display:flex;justify-content:space-between\"><span class=\"ng-positive\">Gainers&nbsp; {up}</span><span class=\"ng-neutral\">Flat&nbsp; {flat}</span><span class=\"ng-negative\">Decliners&nbsp; {down}</span></div></div>", unsafe_allow_html=True)
         st.markdown("### Data status")
-        st.markdown(
-            "<div class='ng-card'><span class='ng-positive'>● Connected</span><br><span class='ng-muted'>Market snapshot refreshed automatically. Values are informational.</span></div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<div class='ng-card'><span class='ng-positive'>● Connected</span><br><span class='ng-muted'>Market snapshot refreshed automatically. Values are informational.</span></div>", unsafe_allow_html=True)
 
     st.markdown('<div class="ng-section-label">Portfolio of information</div>', unsafe_allow_html=True)
     st.markdown("### Market watchlist")
@@ -114,21 +73,11 @@ def render(snapshot: pd.DataFrame, insight: str):
     display["Change %"] = display["Change %"].map(lambda x: "N/A" if pd.isna(x) else f"{x:+.2f}%")
     display = display[["Asset", "Class", "Price", "Change %", "Data"]]
     st.dataframe(display, use_container_width=True, hide_index=True)
-
     st.markdown("### Analyst intelligence")
-    st.markdown(
-        f"<div class='ng-card'><div class='ng-card-title'>RULE-BASED FINANCIAL CONTEXT</div><div style='font-size:1rem;line-height:1.75;margin-top:8px'>{insight}</div></div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<div class='ng-card'><div class='ng-card-title'>RULE-BASED FINANCIAL CONTEXT</div><div style='font-size:1rem;line-height:1.75;margin-top:8px'>{insight}</div></div>", unsafe_allow_html=True)
     st.caption("Market context only — not personalized investment advice.")
-
     st.markdown("### Quick actions")
     a, b, c, d = st.columns(4, gap="small")
-    for col, label, help_text in [
-        (a, "📋 Statements", "Open the Financial Statement Analyzer from the workspace menu."),
-        (b, "💧 Treasury", "Review liquidity and cash-position tools."),
-        (c, "↔ Reconciliation", "Run a bank-versus-cashbook reconciliation."),
-        (d, "🛡 Risk", "Review current market-risk indicators."),
-    ]:
+    for col, label, help_text in [(a, "📋 Statements", "Open the Financial Statement Analyzer from the workspace menu."), (b, "💧 Treasury", "Review liquidity and cash-position tools."), (c, "↔ Reconciliation", "Run a bank-versus-cashbook reconciliation."), (d, "🛡 Risk", "Review current market-risk indicators.")]:
         with col:
             st.button(label, use_container_width=True, help=help_text)
