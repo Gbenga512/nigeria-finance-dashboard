@@ -9,6 +9,9 @@ from analytics.portfolio_risk import (
     portfolio_returns,
     portfolio_risk,
     risk_ratios,
+    minimum_variance_weights,
+    optimized_portfolio_walk_forward,
+    portfolio_stress_matrix,
 )
 
 
@@ -50,3 +53,30 @@ def test_portfolio_risk_and_component_var():
 
 def test_risk_ratios_handles_short_series():
     assert risk_ratios(pd.Series([0.01]))["sharpe"] is None
+
+
+def test_minimum_variance_weights_are_long_only_and_normalized():
+    data = pd.DataFrame({"A": [0.01, -0.01, 0.01, -0.01], "B": [0.005, -0.005, 0.005, -0.005]})
+    weights = minimum_variance_weights(data)
+    assert weights is not None
+    assert (weights >= 0).all()
+    assert weights.sum() == pytest.approx(1.0)
+
+
+def test_optimized_walk_forward_is_reproducible_and_oos():
+    index = pd.date_range("2020-01-01", periods=120, freq="D")
+    a = pd.Series(100 * (1.001 ** pd.Series(range(120))), index=index)
+    b = pd.Series(100 * (1.0005 ** pd.Series(range(120))), index=index)
+    result = optimized_portfolio_walk_forward({"A": a, "B": b}, train_window=40, test_window=20, transaction_cost=0.001)
+    assert result["summary"]
+    assert len(result["blocks"]) >= 3
+    assert result["weights"].shape[0] == len(result["blocks"])
+    assert result["equity"].index.min() >= index[40]
+
+
+def test_portfolio_stress_matrix():
+    data = {"A": prices([100, 101, 102]), "B": prices([100, 99, 101])}
+    stress = portfolio_stress_matrix(data, {"A": 0.6, "B": 0.4}, [-0.10, -0.20])
+    assert not stress.empty
+    assert stress["Portfolio Loss"].ge(0).all()
+    assert "Common shock -10%" in stress["Scenario"].tolist()
