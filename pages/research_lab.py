@@ -2,13 +2,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from analytics.research_lab import (
-    methodology_record,
-    research_summary,
-    rolling_volatility,
-    run_research_experiment,
-    scenario_matrix,
-)
+from analytics.factors import factor_features, factor_signal
+from analytics.research_lab import methodology_record, research_summary, rolling_volatility, run_research_experiment, scenario_matrix
 from config.settings import MARKET_SYMBOLS
 from services.market_data import close_series, fetch_market_data
 from ng_ui import hero
@@ -44,9 +39,8 @@ def render():
 
     st.success(research_summary(results, confidence))
     st.markdown("### Experiment results")
-    display = results.copy()
     pct_cols = ["annualized_volatility", "historical_var", "historical_es", "monte_carlo_var", "monte_carlo_es", "maximum_drawdown", "worst_5d_loss", "var_exception_rate", "expected_exception_rate"]
-    st.dataframe(display.style.format({col: "{:.2%}" for col in pct_cols if col in display.columns}), use_container_width=True, hide_index=True)
+    st.dataframe(results.style.format({col: "{:.2%}" for col in pct_cols if col in results.columns}), use_container_width=True, hide_index=True)
 
     left, right = st.columns(2, gap="large")
     with left:
@@ -81,11 +75,29 @@ def render():
         fig.update_layout(yaxis_tickformat=".1%", height=360)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
+    st.markdown("### Factor diagnostics")
+    factor_asset = st.selectbox("Asset for factor diagnostics", list(price_map.keys()), key="factor_asset")
+    features = factor_features(price_map[factor_asset])
+    if features.empty:
+        st.info("Insufficient observations for factor diagnostics.")
+    else:
+        latest = features.iloc[-1]
+        f1, f2, f3, f4 = st.columns(4)
+        f1.metric("5D Momentum", f"{latest['momentum_5d']:.2%}")
+        f2.metric("21D Momentum", f"{latest['momentum_21d']:.2%}")
+        f3.metric("21D Volatility", f"{latest['volatility_21d']:.2%}")
+        f4.metric("21D Trend", f"{latest['trend_21d']:.2%}")
+        st.info(f"Research factor state: **{factor_signal(price_map[factor_asset])}**. This is a descriptive signal for research, not a trading recommendation.")
+        chart_data = features[["momentum_5d", "momentum_21d", "trend_21d"]].tail(252).reset_index()
+        chart_data = chart_data.melt(id_vars=[chart_data.columns[0]], var_name="Factor", value_name="Value")
+        chart_data = chart_data.rename(columns={chart_data.columns[0]: "Date"})
+        fig = px.line(chart_data, x="Date", y="Value", color="Factor", title=f"Factor diagnostics — {factor_asset}")
+        fig.update_layout(yaxis_tickformat=".1%", height=360)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
     st.markdown("### Methodology & reproducibility")
-    method = methodology_record(confidence, lookback, window)
-    st.json(method)
+    st.json(methodology_record(confidence, lookback, window))
 
     csv = results.to_csv(index=False).encode("utf-8")
     st.download_button("Download experiment results (CSV)", csv, "ng_finance_pro_research_results.csv", "text/csv")
-
     st.caption("Research outputs are designed for empirical analysis and model validation. They are not personalized investment advice. Monte Carlo results use a fixed seed (42) for reproducibility.")
