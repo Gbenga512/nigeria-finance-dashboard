@@ -4,6 +4,7 @@ import streamlit as st
 
 from analytics.backtesting import walk_forward_backtest
 from analytics.factors import factor_features, factor_signal
+from analytics.ml_regime import regime_ml_experiment
 from analytics.portfolio_risk import portfolio_returns, risk_ratios
 from analytics.research_lab import methodology_record, research_summary, rolling_volatility, run_research_experiment, scenario_matrix
 from config.settings import MARKET_SYMBOLS
@@ -172,6 +173,47 @@ def render():
             }])
             st.dataframe(comparison.style.format({"Sharpe": "{:.2f}", "Sortino": "{:.2f}", "Calmar": "{:.2f}"}), use_container_width=True, hide_index=True)
 
+    st.markdown("### ML volatility regime prediction")
+    st.caption("Chronological out-of-sample classification of the next 21-trading-day volatility regime. Thresholds are estimated from the training sample only; the persistence baseline uses current volatility as a simple benchmark.")
+    ml_asset = st.selectbox("Asset for ML regime prediction", list(price_map.keys()), key="ml_regime_asset")
+    ml_result = regime_ml_experiment(price_map[ml_asset], test_fraction=0.30, feature_window=21, horizon=21, random_state=42)
+    if not ml_result["available"]:
+        st.info(ml_result["reason"])
+    else:
+        ml_metrics = ml_result["evaluations"].copy()
+        st.dataframe(ml_metrics.style.format({col: "{:.2%}" for col in ["accuracy", "balanced_accuracy", "macro_precision", "macro_recall", "macro_f1"]}), use_container_width=True, hide_index=True)
+
+        best_model = ml_metrics.sort_values("balanced_accuracy", ascending=False).iloc[0]
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Best test balanced accuracy", f"{best_model['balanced_accuracy']:.2%}")
+        m2.metric("Best model", str(best_model["Model"]))
+        m3.metric("Test observations", f"{ml_result['test_observations']:,}")
+
+        pred = ml_result["predictions"].reset_index().rename(columns={ml_result["predictions"].index.name or "index": "Date"})
+        pred_long = pred.melt(id_vars=["Date"], var_name="Series", value_name="Regime")
+        fig = px.scatter(pred_long, x="Date", y="Series", color="Regime", title=f"Predicted vs realized volatility regimes — {ml_asset}")
+        fig.update_traces(marker={"size": 7})
+        fig.update_layout(height=360)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        model_choice = st.selectbox("Confusion matrix model", ["Logistic regression", "Random forest"], key="ml_cm_model")
+        cm = ml_result["confusion_matrices"][model_choice]
+        cm_display = cm.copy()
+        cm_display.index.name = "Actual"
+        cm_display.columns.name = "Predicted"
+        st.dataframe(cm_display, use_container_width=True)
+
+        importance = ml_result["feature_importance"]
+        if not importance.empty:
+            fig = px.bar(importance, x="Importance", y="Feature", orientation="h", title="Random forest feature importance")
+            fig.update_layout(height=320)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        with st.expander("ML methodology & reproducibility"):
+            st.json(ml_result["methodology"])
+            st.write(f"Training observations: {ml_result['train_observations']:,}. Test observations: {ml_result['test_observations']:,}. Training end: {ml_result['train_end']}. Test start: {ml_result['test_start']}.")
+        st.caption("The ML output is an empirical research model, not a trading signal. Test-set performance should be interpreted with model risk, non-stationarity and multiple-testing considerations in mind.")
+
     st.markdown("### Methodology & reproducibility")
     methodology = methodology_record(confidence, lookback, window)
     methodology.update({
@@ -181,6 +223,8 @@ def render():
         "training_selection": "Strategy selection is based on net training Sharpe after transaction costs",
         "regime_analysis": "Volatility-regime conditioning is reported ex-post and does not influence test-period selection",
         "portfolio_validation": "Fixed user-specified weights compared with an equal-weight benchmark on aligned daily returns",
+        "ml_regime_prediction": "Chronological out-of-sample logistic regression and random forest classification of forward volatility regimes",
+        "ml_threshold_control": "33rd/67th regime thresholds estimated from training targets only",
         "transaction_cost": "User-selected proportional cost per unit turnover",
     })
     st.json(methodology)
