@@ -1,0 +1,1 @@
+Portfolio Risk page created in pages/portfolio_risk.py. Integrate its render() into app navigation as the next UI wiring step.
