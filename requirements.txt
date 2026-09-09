@@ -8,3 +8,4 @@ streamlit-autorefresh
 openpyxl
 pytest
 scikit-learn
+scipy
