@@ -10,9 +10,9 @@ from ng_ui import inject_styles, brand, footer
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
-page = st.sidebar.radio("Workspace", ["📊  Dashboard","🏢  SME Finance Department","🏦  SME Bank Statements","📚  SME Accounting & Statements","🧠  Intelligence Centre","🎯  Integrated Risk Command Centre","📁  Finance Data Workspace","🧾  Financial Data Controls","🧪  Quant Lab","🔬  Research & Backtesting","🌍  Emerging Markets Research","📉  GARCH Volatility Lab","💱  Liquidity & FX Risk","🛡️  Risk Robustness Lab","📈  Markets","🤖  AI Insights","🛡️  Risk Monitor","📐  Portfolio Risk","📰  News Terminal","💧  Treasury Dashboard","↔️  Bank Reconciliation","📑  Budget Analysis","📋  Financial Statement Analyzer","📄  Executive Reports"], label_visibility="visible")
+page = st.sidebar.radio("Workspace", ["📊  Dashboard","🏢  SME Finance Department","🏦  SME Bank Statements","📚  SME Accounting & Statements","📘  SME Management Accounts","🧠  Intelligence Centre","🎯  Integrated Risk Command Centre","📁  Finance Data Workspace","🧾  Financial Data Controls","🧪  Quant Lab","🔬  Research & Backtesting","🌍  Emerging Markets Research","📉  GARCH Volatility Lab","💱  Liquidity & FX Risk","🛡️  Risk Robustness Lab","📈  Markets","🤖  AI Insights","🛡️  Risk Monitor","📐  Portfolio Risk","📰  News Terminal","💧  Treasury Dashboard","↔️  Bank Reconciliation","📑  Budget Analysis","📋  Financial Statement Analyzer","📄  Executive Reports"], label_visibility="visible")
 st.sidebar.markdown('<div class="ng-upgrade"><div class="ng-upgrade-title">✦ Built for finance teams</div><div class="ng-upgrade-copy">Markets, treasury, risk and accounting intelligence in one workspace.</div></div>', unsafe_allow_html=True)
-if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements"}: st_autorefresh(interval=300000, key="market_refresh")
+if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts"}: st_autorefresh(interval=300000, key="market_refresh")
 snapshot = market_snapshot(); st.sidebar.divider(); st.sidebar.markdown('<span class="ng-status">● LIVE DATA</span>',unsafe_allow_html=True); st.sidebar.caption(f"Updated {datetime.now().strftime('%d %b %Y • %H:%M')}"); st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
 if page == "📊  Dashboard": insight, _ = generate_ai_insight(snapshot); dashboard.render(snapshot, insight)
 elif page == "🏢  SME Finance Department":
@@ -24,6 +24,9 @@ elif page == "🏦  SME Bank Statements":
 elif page == "📚  SME Accounting & Statements":
     from pages import sme_accounting
     sme_accounting.render()
+elif page == "📘  SME Management Accounts":
+    from pages import sme_management
+    sme_management.render()
 elif page == "🧠  Intelligence Centre": intelligence.render(snapshot)
 elif page == "🎯  Integrated Risk Command Centre": integrated_risk.render(snapshot)
 elif page == "📁  Finance Data Workspace": data_workspace.render()
