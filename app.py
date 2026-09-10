@@ -6,7 +6,30 @@ from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk, data_controls
-from ng_ui import WORKSPACES, inject_styles, brand, footer, workspace_navigator
+from ng_ui import inject_styles, brand, footer
+
+WORKSPACES = [
+    "📊  Dashboard", "🏢  SME Finance Department", "🏦  SME Bank Statements",
+    "📚  SME Accounting & Statements", "📘  SME Management Accounts",
+    "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
+    "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab",
+    "🔬  Research & Backtesting", "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab",
+    "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab", "📈  Markets", "🤖  AI Insights",
+    "🛡️  Risk Monitor", "📐  Portfolio Risk", "📰  News Terminal", "💧  Treasury Dashboard",
+    "↔️  Bank Reconciliation", "📑  Budget Analysis", "📋  Financial Statement Analyzer",
+    "📄  Executive Reports",
+]
+
+
+def mobile_workspace_navigator(current: str) -> None:
+    """Keep mobile navigation local to app.py so stale ng_ui deployments cannot break startup."""
+    st.markdown("### Workspace navigation")
+    choices = [item for item in WORKSPACES if item != current]
+    target = st.selectbox("Open module", choices, key="ng_mobile_nav")
+    if st.button("Open selected module", key="ng_open_module", use_container_width=True):
+        st.session_state["ng_nav_target"] = target
+        st.rerun()
+
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
@@ -15,7 +38,7 @@ nav_target = st.session_state.pop("ng_nav_target", None)
 if nav_target not in WORKSPACES:
     nav_target = None
 page = st.sidebar.radio("Workspace", WORKSPACES, index=WORKSPACES.index(nav_target) if nav_target else 0, label_visibility="visible")
-workspace_navigator(page)
+mobile_workspace_navigator(page)
 
 st.sidebar.markdown('<div class="ng-upgrade"><div class="ng-upgrade-title">✦ Built for finance teams</div><div class="ng-upgrade-copy">Markets, treasury, risk and accounting intelligence in one workspace.</div></div>', unsafe_allow_html=True)
 if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts"}: st_autorefresh(interval=300000, key="market_refresh")
