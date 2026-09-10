@@ -154,18 +154,22 @@ def journal_entries_df(business_id: int, start=None, end=None) -> pd.DataFrame:
 
 
 def trial_balance(business_id: int, start=None, end=None) -> pd.DataFrame:
+    """Return a uniquely keyed trial balance suitable for downstream joins."""
     ensure_standard_accounts(business_id)
     df = journal_entries_df(business_id, start, end)
-    accounts = account_catalog(business_id)[["id", "name", "statement_type", "opening_balance"]].rename(columns={"statement_type":"Type"})
+    accounts = account_catalog(business_id)[["id", "name", "statement_type", "opening_balance"]].rename(
+        columns={"id": "account_id", "name": "Account", "statement_type": "Type"}
+    )
     if df.empty:
-        out = accounts.rename(columns={"id":"account_id", "name":"Account"})
-        out["Debits"] = 0.0; out["Credits"] = 0.0; out["Balance"] = out["opening_balance"].astype(float)
-        return out[["account_id","Account","Type","Debits","Credits","Balance"]]
-    grouped = df.groupby("account_id", as_index=False).agg(Debits=("debit","sum"), Credits=("credit","sum"))
-    out = accounts.merge(grouped, left_on="id", right_on="account_id", how="left").fillna({"Debits":0.0,"Credits":0.0})
+        out = accounts.copy()
+        out["Debits"] = 0.0
+        out["Credits"] = 0.0
+        out["Balance"] = out["opening_balance"].astype(float)
+        return out[["account_id", "Account", "Type", "Debits", "Credits", "Balance"]]
+    grouped = df.groupby("account_id", as_index=False).agg(Debits=("debit", "sum"), Credits=("credit", "sum"))
+    out = accounts.merge(grouped, on="account_id", how="left").fillna({"Debits": 0.0, "Credits": 0.0})
     out["Balance"] = out["opening_balance"].astype(float) + out["Debits"] - out["Credits"]
-    out = out.rename(columns={"id":"account_id", "name":"Account"})
-    return out[["account_id","Account","Type","Debits","Credits","Balance"]]
+    return out[["account_id", "Account", "Type", "Debits", "Credits", "Balance"]]
 
 
 def profit_and_loss(business_id: int, start=None, end=None) -> dict:
@@ -190,13 +194,13 @@ def cash_flow(business_id: int, start=None, end=None) -> pd.DataFrame:
     accounts = account_catalog(business_id)
     cash_ids = set(accounts.loc[accounts["name"].isin(["Main Bank", "Cash on Hand"]), "id"].astype(int))
     if df.empty or not cash_ids:
-        return pd.DataFrame(columns=["Section","Cash Inflow","Cash Outflow","Net Cash Flow"])
+        return pd.DataFrame(columns=["Section", "Cash Inflow", "Cash Outflow", "Net Cash Flow"])
     cash = df[df["account_id"].isin(cash_ids)].copy()
     if cash.empty:
-        return pd.DataFrame(columns=["Section","Cash Inflow","Cash Outflow","Net Cash Flow"])
+        return pd.DataFrame(columns=["Section", "Cash Inflow", "Cash Outflow", "Net Cash Flow"])
     cash["Section"] = "Operating"
     inflow = float(cash["debit"].sum()); outflow = float(cash["credit"].sum())
-    return pd.DataFrame([{ "Section":"Operating", "Cash Inflow":inflow, "Cash Outflow":outflow, "Net Cash Flow":inflow-outflow }])
+    return pd.DataFrame([{"Section": "Operating", "Cash Inflow": inflow, "Cash Outflow": outflow, "Net Cash Flow": inflow - outflow}])
 
 
 def sync_transaction(business_id: int, transaction_id: int) -> int | None:
@@ -204,10 +208,13 @@ def sync_transaction(business_id: int, transaction_id: int) -> int | None:
     ensure_standard_accounts(business_id)
     with connect() as conn:
         tx = conn.execute("SELECT * FROM transactions WHERE id=? AND business_id=?", (transaction_id, business_id)).fetchone()
-        if not tx: raise ValueError("Transaction not found for this business.")
-        if tx["transaction_type"] == "Transfer": return None
+        if not tx:
+            raise ValueError("Transaction not found for this business.")
+        if tx["transaction_type"] == "Transfer":
+            return None
         existing = conn.execute("SELECT id FROM journal_entries WHERE source_transaction_id=?", (transaction_id,)).fetchone()
-        if existing: return int(existing["id"])
+        if existing:
+            return int(existing["id"])
         accounts = {r["name"]: int(r["id"]) for r in conn.execute("SELECT id,name FROM accounts WHERE business_id=?", (business_id,)).fetchall()}
         account_row = conn.execute("SELECT name FROM accounts WHERE id=? AND business_id=?", (tx["account_id"], business_id)).fetchone()
         cash_name = account_row["name"] if account_row and account_row["name"] in {"Main Bank", "Cash on Hand"} else "Main Bank"
@@ -215,11 +222,11 @@ def sync_transaction(business_id: int, transaction_id: int) -> int | None:
         category = str(tx["category"] or "").strip().lower()
         if tx["transaction_type"] in {"Income", "Receipt"}:
             counterpart = accounts["Sales Revenue"]
-            lines = [{"account_id":cash_id,"debit":float(tx["amount"])},{"account_id":counterpart,"credit":float(tx["amount"])}]
+            lines = [{"account_id": cash_id, "debit": float(tx["amount"])}, {"account_id": counterpart, "credit": float(tx["amount"])}]
         else:
-            mapping = {"payroll":"Payroll","rent":"Rent","utilities":"Utilities","transport":"Transport","bank charges":"Bank Charges","tax":"Tax Expense","cogs":"Cost of Goods Sold"}
-            counterpart = accounts.get(next((v for k,v in mapping.items() if k in category), "Operating Expenses"), accounts["Operating Expenses"])
-            lines = [{"account_id":counterpart,"debit":float(tx["amount"])},{"account_id":cash_id,"credit":float(tx["amount"])}]
+            mapping = {"payroll": "Payroll", "rent": "Rent", "utilities": "Utilities", "transport": "Transport", "bank charges": "Bank Charges", "tax": "Tax Expense", "cogs": "Cost of Goods Sold"}
+            counterpart = accounts.get(next((v for k, v in mapping.items() if k in category), "Operating Expenses"), accounts["Operating Expenses"])
+            lines = [{"account_id": counterpart, "debit": float(tx["amount"])}, {"account_id": cash_id, "credit": float(tx["amount"])}]
     return post_journal_entry(business_id, tx["transaction_date"], tx["description"], lines, reference=tx["reference"] or "", source="Transaction sync", source_transaction_id=transaction_id)
 
 
@@ -230,9 +237,11 @@ def sync_eligible_transactions(business_id: int) -> tuple[int, int]:
     posted = skipped = 0
     for _, row in tx.iterrows():
         if str(row["transaction_type"]) == "Transfer":
-            skipped += 1; continue
+            skipped += 1
+            continue
         before = journal_entries_df(business_id)
         sync_transaction(business_id, int(row["id"]))
         after = journal_entries_df(business_id)
-        if len(after) > len(before): posted += 1
+        if len(after) > len(before):
+            posted += 1
     return posted, skipped
