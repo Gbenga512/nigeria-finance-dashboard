@@ -24,18 +24,25 @@ WORKSPACES = [
 ]
 
 
+def _request_mobile_navigation() -> None:
+    target = st.session_state.get("ng_mobile_nav")
+    if target in WORKSPACES:
+        st.session_state["ng_nav_target"] = target
+
+
 def mobile_workspace_navigator(current: str) -> None:
-    """Mobile navigation for the workspace selector."""
+    """One-selection mobile navigation; changing the module immediately navigates."""
     st.markdown("### Workspace navigation")
     choices = [item for item in WORKSPACES if item != current]
-    target = st.selectbox("Open module", choices, key="ng_mobile_nav")
-    if st.button("Open selected module", key="ng_open_module", use_container_width=True):
-        st.session_state["ng_nav_target"] = target
-        st.rerun()
+    st.selectbox(
+        "Open module",
+        choices,
+        key=f"ng_mobile_nav_{current}",
+        on_change=_request_mobile_navigation,
+    )
 
 
 # Apply a requested navigation target BEFORE creating the sidebar radio widget.
-# This avoids Streamlit preserving the previous radio value across reruns.
 nav_target = st.session_state.pop("ng_nav_target", None)
 if nav_target in WORKSPACES:
     st.session_state["ng_workspace_radio"] = nav_target
