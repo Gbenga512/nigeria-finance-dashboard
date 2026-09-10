@@ -8,6 +8,9 @@ from services.ai_service import generate_ai_insight
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk, data_controls
 from ng_ui import inject_styles, brand, footer
 
+st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
+
 WORKSPACES = [
     "📊  Dashboard", "🏢  SME Finance Department", "🏦  SME Bank Statements",
     "📚  SME Accounting & Statements", "📘  SME Management Accounts",
@@ -22,7 +25,7 @@ WORKSPACES = [
 
 
 def mobile_workspace_navigator(current: str) -> None:
-    """Keep mobile navigation local to app.py so stale ng_ui deployments cannot break startup."""
+    """Mobile navigation for the workspace selector."""
     st.markdown("### Workspace navigation")
     choices = [item for item in WORKSPACES if item != current]
     target = st.selectbox("Open module", choices, key="ng_mobile_nav")
@@ -31,17 +34,25 @@ def mobile_workspace_navigator(current: str) -> None:
         st.rerun()
 
 
-st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
-inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
-
+# Apply a requested navigation target BEFORE creating the sidebar radio widget.
+# This avoids Streamlit preserving the previous radio value across reruns.
 nav_target = st.session_state.pop("ng_nav_target", None)
-if nav_target not in WORKSPACES:
-    nav_target = None
-page = st.sidebar.radio("Workspace", WORKSPACES, index=WORKSPACES.index(nav_target) if nav_target else 0, label_visibility="visible")
+if nav_target in WORKSPACES:
+    st.session_state["ng_workspace_radio"] = nav_target
+elif st.session_state.get("ng_workspace_radio") not in WORKSPACES:
+    st.session_state["ng_workspace_radio"] = WORKSPACES[0]
+
+page = st.sidebar.radio(
+    "Workspace",
+    WORKSPACES,
+    key="ng_workspace_radio",
+    label_visibility="visible",
+)
 mobile_workspace_navigator(page)
 
 st.sidebar.markdown('<div class="ng-upgrade"><div class="ng-upgrade-title">✦ Built for finance teams</div><div class="ng-upgrade-copy">Markets, treasury, risk and accounting intelligence in one workspace.</div></div>', unsafe_allow_html=True)
-if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts"}: st_autorefresh(interval=300000, key="market_refresh")
+if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts"}:
+    st_autorefresh(interval=300000, key="market_refresh")
 snapshot = market_snapshot(); st.sidebar.divider(); st.sidebar.markdown('<span class="ng-status">● LIVE DATA</span>',unsafe_allow_html=True); st.sidebar.caption(f"Updated {datetime.now().strftime('%d %b %Y • %H:%M')}"); st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
 if page == "📊  Dashboard": insight, _ = generate_ai_insight(snapshot); dashboard.render(snapshot, insight)
 elif page == "🏢  SME Finance Department":
