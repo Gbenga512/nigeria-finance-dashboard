@@ -1,4 +1,5 @@
 from pathlib import Path
+import importlib
 import pandas as pd
 
 import services.sme_store as store
@@ -7,6 +8,16 @@ from services.sme_accounting import ensure_standard_accounts, post_journal_entry
 from analytics.sme_management_accounts import management_accounts
 from analytics.sme_cashflow_v2 import forecast_13_weeks
 from services.sme_budget import create_budget, variance_report
+
+
+PAGE_MODULES = [
+    "pages.dashboard", "pages.markets", "pages.reconciliation", "pages.financial_statements",
+    "pages.treasury", "pages.budget", "pages.risk", "pages.reports", "pages.intelligence",
+    "pages.quant_lab", "pages.portfolio_risk", "pages.research_lab", "pages.robustness",
+    "pages.data_workspace", "pages.garch_lab", "pages.liquidity_fx", "pages.research",
+    "pages.integrated_risk", "pages.data_controls", "pages.sme_finance", "pages.sme_bank_import",
+    "pages.sme_accounting", "pages.sme_management",
+]
 
 
 def setup(tmp_path: Path):
@@ -18,6 +29,12 @@ def setup(tmp_path: Path):
     ensure_standard_accounts(bid)
     accounts = {r["name"]: int(r["id"]) for r in list_accounts(bid)}
     return db, old, bid, accounts
+
+
+def test_all_page_modules_import_and_expose_render():
+    for module_name in PAGE_MODULES:
+        module = importlib.import_module(module_name)
+        assert callable(getattr(module, "render", None)), module_name
 
 
 def test_management_accounts_calculations(tmp_path):
