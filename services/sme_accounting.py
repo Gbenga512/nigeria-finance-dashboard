@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 import pandas as pd
 
-from services.sme_store import connect, init_db, list_accounts
+from services.sme_store import connect, init_db
 
 STANDARD_ACCOUNTS = [
     ("1000", "Main Bank", "Asset"),
@@ -72,11 +72,28 @@ def ensure_standard_accounts(business_id: int) -> None:
             conn.commit()
 
 
+def _statement_type(account_type: str) -> str:
+    """Normalize legacy Phase-1 account labels to financial-statement classes."""
+    return {
+        "Cash": "Asset",
+        "Receivable": "Asset",
+        "Payable": "Liability",
+        "Asset": "Asset",
+        "Liability": "Liability",
+        "Equity": "Equity",
+        "Revenue": "Revenue",
+        "Expense": "Expense",
+    }.get(str(account_type), str(account_type))
+
+
 def account_catalog(business_id: int) -> pd.DataFrame:
     ensure_standard_accounts(business_id)
     with connect() as conn:
         rows = conn.execute("SELECT id,name,account_type,opening_balance,active FROM accounts WHERE business_id=? AND active=1 ORDER BY name", (business_id,)).fetchall()
-    return pd.DataFrame([dict(r) for r in rows])
+    out = pd.DataFrame([dict(r) for r in rows])
+    if not out.empty:
+        out["statement_type"] = out["account_type"].map(_statement_type)
+    return out
 
 
 def _assert_business_accounts(conn, business_id: int, account_ids: list[int]) -> None:
@@ -139,15 +156,15 @@ def journal_entries_df(business_id: int, start=None, end=None) -> pd.DataFrame:
 def trial_balance(business_id: int, start=None, end=None) -> pd.DataFrame:
     ensure_standard_accounts(business_id)
     df = journal_entries_df(business_id, start, end)
-    accounts = account_catalog(business_id)[["id", "name", "account_type", "opening_balance"]]
+    accounts = account_catalog(business_id)[["id", "name", "statement_type", "opening_balance"]].rename(columns={"statement_type":"Type"})
     if df.empty:
-        out = accounts.rename(columns={"id":"account_id", "name":"Account", "account_type":"Type"})
+        out = accounts.rename(columns={"id":"account_id", "name":"Account"})
         out["Debits"] = 0.0; out["Credits"] = 0.0; out["Balance"] = out["opening_balance"].astype(float)
         return out[["account_id","Account","Type","Debits","Credits","Balance"]]
     grouped = df.groupby("account_id", as_index=False).agg(Debits=("debit","sum"), Credits=("credit","sum"))
     out = accounts.merge(grouped, left_on="id", right_on="account_id", how="left").fillna({"Debits":0.0,"Credits":0.0})
     out["Balance"] = out["opening_balance"].astype(float) + out["Debits"] - out["Credits"]
-    out = out.rename(columns={"id":"account_id", "name":"Account", "account_type":"Type"})
+    out = out.rename(columns={"id":"account_id", "name":"Account"})
     return out[["account_id","Account","Type","Debits","Credits","Balance"]]
 
 
@@ -165,7 +182,7 @@ def balance_sheet(business_id: int, end=None) -> dict:
     equity = float(-tb.loc[tb["Type"] == "Equity", "Balance"].sum())
     pnl = profit_and_loss(business_id, None, end)
     equity_with_profit = equity + pnl["Net Income"]
-    return {"Assets": assets, "Liabilities": liabilities, "Equity": equity_with_profit, "Liabilities + Equity": liabilities + equity_with_profit, "Balanced": abs(assets - (liabilities + equity_with_profit)) < 0.01}
+    return {"Assets": assets, "Liabilities": liabilities, "Equity": equity_with_profit, "Liabilities + Equity": liabilities + equity_with_profit, "Balanced": bool(abs(assets - (liabilities + equity_with_profit)) < 0.01)}
 
 
 def cash_flow(business_id: int, start=None, end=None) -> pd.DataFrame:
@@ -192,8 +209,8 @@ def sync_transaction(business_id: int, transaction_id: int) -> int | None:
         existing = conn.execute("SELECT id FROM journal_entries WHERE source_transaction_id=?", (transaction_id,)).fetchone()
         if existing: return int(existing["id"])
         accounts = {r["name"]: int(r["id"]) for r in conn.execute("SELECT id,name FROM accounts WHERE business_id=?", (business_id,)).fetchall()}
-        cash_name = next((n for n in ["Main Bank", "Cash on Hand"] if n == next((r["name"] for r in conn.execute("SELECT id,name FROM accounts WHERE id=?", (tx["account_id"],)).fetchall()), None)), None)
-        if not cash_name: cash_name = "Main Bank"
+        account_row = conn.execute("SELECT name FROM accounts WHERE id=? AND business_id=?", (tx["account_id"], business_id)).fetchone()
+        cash_name = account_row["name"] if account_row and account_row["name"] in {"Main Bank", "Cash on Hand"} else "Main Bank"
         cash_id = accounts[cash_name]
         category = str(tx["category"] or "").strip().lower()
         if tx["transaction_type"] in {"Income", "Receipt"}:
