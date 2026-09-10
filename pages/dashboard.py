@@ -76,8 +76,17 @@ def render(snapshot: pd.DataFrame, insight: str):
     st.markdown("### Analyst intelligence")
     st.markdown(f"<div class='ng-card'><div class='ng-card-title'>RULE-BASED FINANCIAL CONTEXT</div><div style='font-size:1rem;line-height:1.75;margin-top:8px'>{insight}</div></div>", unsafe_allow_html=True)
     st.caption("Market context only — not personalized investment advice.")
+
     st.markdown("### Quick actions")
-    a, b, c, d = st.columns(4, gap="small")
-    for col, label, help_text in [(a, "📋 Statements", "Open the Financial Statement Analyzer from the workspace menu."), (b, "💧 Treasury", "Review liquidity and cash-position tools."), (c, "↔ Reconciliation", "Run a bank-versus-cashbook reconciliation."), (d, "🛡 Risk", "Review current market-risk indicators.")]:
+    actions = [
+        ("📋 Statements", "📋  Financial Statement Analyzer", "Review financial statement analytics."),
+        ("💧 Treasury", "💧  Treasury Dashboard", "Review liquidity and cash-position tools."),
+        ("↔ Reconciliation", "↔️  Bank Reconciliation", "Run a bank-versus-cashbook reconciliation."),
+        ("🛡 Risk", "🛡️  Risk Monitor", "Review current market-risk indicators."),
+    ]
+    action_cols = st.columns(2 if len(actions) > 2 else len(actions), gap="small")
+    for col, (label, target, help_text) in zip(action_cols, actions):
         with col:
-            st.button(label, use_container_width=True, help=help_text)
+            if st.button(label, use_container_width=True, help=help_text, key=f"quick_{target}"):
+                st.session_state["ng_nav_target"] = target
+                st.rerun()
