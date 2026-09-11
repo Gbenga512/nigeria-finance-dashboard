@@ -10,7 +10,7 @@ def test_parse_csv_does_not_post_and_detects_duplicates():
     assert out["duplicate"].sum() == 2
     assert out.loc[0, "transaction_type"] == "Expense"
     assert out.loc[1, "transaction_type"] == "Income"
-    assert out.loc[0, "direction_review_required"] is False
+    assert bool(out.loc[0, "direction_review_required"]) is False
 
 
 def test_amount_only_positive_values_require_direction_review():
