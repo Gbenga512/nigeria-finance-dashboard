@@ -23,3 +23,21 @@ def test_reconciliation_matches_once():
     assert len(matches) == 1
     assert int(bank_out["Matched"].sum()) == 1
     assert int(cash_out["Matched"].sum()) == 1
+
+
+def test_reconciliation_does_not_match_opposite_cash_direction():
+    bank = normalize_transactions(pd.DataFrame({"Date": ["2026-01-01"], "Amount": [-100]}), "Bank")
+    cash = normalize_transactions(pd.DataFrame({"Date": ["2026-01-01"], "Amount": [100]}), "Cashbook")
+    bank_out, cash_out, matches = reconcile(bank, cash, 0)
+    assert matches.empty
+    assert not bool(bank_out.loc[0, "Matched"])
+    assert not bool(cash_out.loc[0, "Matched"])
+
+
+def test_reconciliation_normalizes_debit_credit_columns():
+    bank = normalize_transactions(pd.DataFrame({"Date": ["2026-01-01"], "Debit": [100], "Credit": [None]}), "Bank")
+    cash = normalize_transactions(pd.DataFrame({"Date": ["2026-01-01"], "Amount": [-100]}), "Cashbook")
+    assert bank.loc[0, "Amount"] == -100
+    assert bank.loc[0, "Direction"] == "Outflow"
+    _, _, matches = reconcile(bank, cash, 0)
+    assert len(matches) == 1
