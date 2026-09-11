@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from ng_ui import hero
-from services.sme_accounting import account_catalog, trial_balance
+from services.sme_accounting import account_catalog
 from services.sme_budget import create_budget, list_budgets, variance_report
 from services.sme_store import get_or_create_user, list_businesses
 
@@ -23,13 +23,9 @@ def _uploaded_budget(upload):
 
 
 def _ledger_budget(business_id: int, budget_id: int) -> pd.DataFrame:
-    """Recompute displayed variance with normal-direction accounting semantics."""
     report = variance_report(business_id, budget_id).copy()
     if report.empty:
         return report
-    tb = trial_balance(business_id, None, None)
-    # The persisted report is used for period scope; this correction only guards
-    # the presentation direction for P&L accounts.
     report["Favourability"] = report.apply(
         lambda r: "Favourable" if (
             (r["Type"] == "Revenue" and r["Variance"] >= 0)
@@ -60,13 +56,15 @@ def render():
             budget_id = int(budgets.iloc[budget_labels.index(selected)]["id"])
             report = _ledger_budget(business_id, budget_id)
             if not report.empty:
-                total_budget = float(report["Budget"].sum())
-                total_actual = float(report["Actual"].sum())
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Budget", f"₦{total_budget:,.0f}")
-                c2.metric("Actual", f"₦{total_actual:,.0f}")
-                c3.metric("Net variance", f"₦{(total_actual-total_budget):,.0f}")
+                revenue = report[report["Type"] == "Revenue"]
+                expense = report[report["Type"] == "Expense"]
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Revenue budget", f"₦{revenue['Budget'].sum():,.0f}")
+                c2.metric("Revenue actual", f"₦{revenue['Actual'].sum():,.0f}")
+                c3.metric("Expense budget", f"₦{expense['Budget'].sum():,.0f}")
+                c4.metric("Expense actual", f"₦{expense['Actual'].sum():,.0f}")
                 st.dataframe(report, use_container_width=True, hide_index=True)
+                st.caption("Revenue variance is favourable when actual revenue exceeds budget. Expense variance is favourable when actual expense is below budget.")
 
         with st.expander("Create SME budget"):
             accounts = account_catalog(business_id)
