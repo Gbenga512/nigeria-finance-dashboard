@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from services.sme_store import connect, create_business, get_or_create_user, init_db, add_transaction
+from services.sme_store import create_business, get_or_create_user, init_db, add_transaction
 from services.sme_accounting import (
     balance_sheet,
+    cash_flow,
     ensure_standard_accounts,
     post_journal_entry,
     profit_and_loss,
@@ -76,5 +77,23 @@ def test_transaction_cannot_reference_another_business_account(tmp_path):
         first_bank = next(a["id"] for a in store.list_accounts(first) if a["name"] == "Main Bank")
         with pytest.raises(ValueError, match="does not belong"):
             add_transaction(second, "2026-03-01", "Invalid cross-business transaction", 1000, "Expense", account_id=first_bank)
+    finally:
+        store.DB_PATH = old
+
+
+def test_cash_flow_classifies_financing_investing_and_operating(tmp_path):
+    import services.sme_store as store
+    db = tmp_path / "test.db"; old = store.DB_PATH; store.DB_PATH = db
+    try:
+        init_db(db); user = get_or_create_user("u5"); business = create_business(user, "Test")
+        ensure_standard_accounts(business)
+        accounts = {r["name"]: r["id"] for r in store.list_accounts(business)}
+        post_journal_entry(business, "2026-03-01", "Owner funding", [{"account_id":accounts["Main Bank"],"debit":100000},{"account_id":accounts["Owner's Equity"],"credit":100000}])
+        post_journal_entry(business, "2026-03-02", "Equipment", [{"account_id":accounts["Inventory"],"debit":30000},{"account_id":accounts["Main Bank"],"credit":30000}])
+        post_journal_entry(business, "2026-03-03", "Sale", [{"account_id":accounts["Main Bank"],"debit":50000},{"account_id":accounts["Sales Revenue"],"credit":50000}])
+        cf = cash_flow(business, "2026-03-01", "2026-03-31").set_index("Section")
+        assert float(cf.loc["Financing", "Cash Inflow"]) == 100000
+        assert float(cf.loc["Investing", "Cash Outflow"]) == 30000
+        assert float(cf.loc["Operating", "Cash Inflow"]) == 50000
     finally:
         store.DB_PATH = old
