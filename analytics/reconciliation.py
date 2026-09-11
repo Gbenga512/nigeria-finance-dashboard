@@ -50,6 +50,7 @@ def normalize_transactions(df: pd.DataFrame, source: str) -> pd.DataFrame:
         "Source": source,
     })
     out["Direction"] = out["Amount"].map(lambda x: "Inflow" if x > 0 else "Outflow" if x < 0 else "Unknown")
+    out.loc[conflict, "Amount"] = pd.NA
     out.loc[conflict, "Direction"] = "Unknown"
     out = out.dropna(subset=["Date", "Amount"]).reset_index(drop=True)
     out["Amount"] = out["Amount"].round(2)
