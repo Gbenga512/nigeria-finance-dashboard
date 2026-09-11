@@ -58,10 +58,14 @@ def test_cash_forecast_uses_opening_cash_and_returns_13_weeks():
     tx = pd.DataFrame([
         {"transaction_date":"2026-01-02","transaction_type":"Income","amount":100000},
         {"transaction_date":"2026-01-03","transaction_type":"Expense","amount":40000},
-        {"transaction_date":"2026-01-10","transaction_type":"Income","amount":120000},
-        {"transaction_date":"2026-01-11","transaction_type":"Expense","amount":50000},
+        {"transaction_date":"2026-01-12","transaction_type":"Income","amount":120000},
+        {"transaction_date":"2026-01-13","transaction_type":"Expense","amount":50000},
+        {"transaction_date":"2026-01-20","transaction_type":"Income","amount":90000},
+        {"transaction_date":"2026-01-21","transaction_type":"Expense","amount":45000},
+        {"transaction_date":"2026-01-27","transaction_type":"Income","amount":110000},
+        {"transaction_date":"2026-01-28","transaction_type":"Expense","amount":55000},
     ])
-    result = forecast_13_weeks(tx, as_of="2026-01-15", opening_cash=500000)
+    result = forecast_13_weeks(tx, as_of="2026-01-31", opening_cash=500000)
     assert len(result["forecast"]) == 13
     assert result["forecast"].iloc[0]["Opening Cash"] == 500000
     assert result["status"] == "BASELINE"
