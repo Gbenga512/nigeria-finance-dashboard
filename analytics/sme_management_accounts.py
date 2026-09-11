@@ -14,19 +14,27 @@ def management_accounts(business_id: int, start, end) -> dict:
     """Return transparent management KPIs; values are actuals from posted journals."""
     pnl = profit_and_loss(business_id, start, end)
     bs = balance_sheet(business_id, end)
-    tb = trial_balance(business_id, None, end)
+    period_tb = trial_balance(business_id, start, end)
+    end_tb = trial_balance(business_id, None, end)
     cf = cash_flow(business_id, start, end)
 
     revenue = pnl["Revenue"]
     expenses = pnl["Expenses"]
     net_income = pnl["Net Income"]
-    cogs = float(tb.loc[(tb["Type"] == "Expense") & (tb["Account"].str.contains("Cost of Goods Sold", case=False, na=False)), "Debits"].sum()) if not tb.empty else 0.0
+    cogs = float(
+        period_tb.loc[
+            (period_tb["Type"] == "Expense")
+            & period_tb["Account"].str.contains("Cost of Goods Sold", case=False, na=False),
+            "Debits",
+        ].sum()
+    ) if not period_tb.empty else 0.0
     gross_profit = revenue - cogs
-    operating_expenses = max(0.0, expenses - cogs)
-    cash = float(tb.loc[tb["Account"].isin(["Main Bank", "Cash on Hand"]), "Balance"].sum()) if not tb.empty else 0.0
-    current_assets = float(tb.loc[(tb["Type"] == "Asset") & (tb["Account"].isin(["Main Bank", "Cash on Hand", "Accounts Receivable", "Inventory"])), "Balance"].sum()) if not tb.empty else 0.0
-    current_liabilities = float(-tb.loc[(tb["Type"] == "Liability") & (tb["Account"].isin(["Accounts Payable", "Tax Payable"])), "Balance"].sum()) if not tb.empty else 0.0
-    quick_assets = current_assets - float(tb.loc[(tb["Account"] == "Inventory"), "Balance"].sum()) if not tb.empty else current_assets
+    operating_expenses = expenses - cogs
+    cash = float(end_tb.loc[end_tb["Account"].isin(["Main Bank", "Cash on Hand"]), "Balance"].sum()) if not end_tb.empty else 0.0
+    current_assets = float(end_tb.loc[(end_tb["Type"] == "Asset") & end_tb["Account"].isin(["Main Bank", "Cash on Hand", "Accounts Receivable", "Inventory"]), "Balance"].sum()) if not end_tb.empty else 0.0
+    current_liabilities = float(-end_tb.loc[(end_tb["Type"] == "Liability") & end_tb["Account"].isin(["Accounts Payable", "Tax Payable"]), "Balance"].sum()) if not end_tb.empty else 0.0
+    inventory = float(end_tb.loc[end_tb["Account"] == "Inventory", "Balance"].sum()) if not end_tb.empty else 0.0
+    quick_assets = current_assets - inventory
 
     risks = []
     if revenue <= 0:
@@ -50,11 +58,31 @@ def management_accounts(business_id: int, start, end) -> dict:
 
     return {
         "period": {"start": str(start), "end": str(end)},
-        "kpis": {"revenue": revenue, "cogs": cogs, "gross_profit": gross_profit, "gross_margin": _ratio(gross_profit, revenue), "operating_expenses": operating_expenses, "net_income": net_income, "net_margin": _ratio(net_income, revenue), "cash": cash, "current_assets": current_assets, "current_liabilities": current_liabilities, "working_capital": current_assets - current_liabilities, "current_ratio": _ratio(current_assets, current_liabilities), "quick_ratio": _ratio(quick_assets, current_liabilities), "cash_flow": float(cf["Net Cash Flow"].sum()) if not cf.empty else 0.0},
+        "kpis": {
+            "revenue": revenue,
+            "cogs": cogs,
+            "gross_profit": gross_profit,
+            "gross_margin": _ratio(gross_profit, revenue),
+            "operating_expenses": operating_expenses,
+            "net_income": net_income,
+            "net_margin": _ratio(net_income, revenue),
+            "cash": cash,
+            "current_assets": current_assets,
+            "current_liabilities": current_liabilities,
+            "working_capital": current_assets - current_liabilities,
+            "current_ratio": _ratio(current_assets, current_liabilities),
+            "quick_ratio": _ratio(quick_assets, current_liabilities),
+            "cash_flow": float(cf["Net Cash Flow"].sum()) if not cf.empty else 0.0,
+        },
         "balance_sheet": bs,
         "risks": risks,
         "recommendations": recommendations,
-        "data_labels": {"actuals": "FACT: sourced from posted double-entry journals.", "ratios": "CALCULATION: derived from the posted ledger.", "forecast": "ESTIMATE: modelled separately and never presented as an actual.", "recommendation": "RECOMMENDATION: decision-support, not professional advice."},
+        "data_labels": {
+            "actuals": "FACT: sourced from posted double-entry journals.",
+            "ratios": "CALCULATION: derived from the posted ledger.",
+            "forecast": "ESTIMATE: modelled separately and never presented as an actual.",
+            "recommendation": "RECOMMENDATION: decision-support, not professional advice.",
+        },
     }
 
 
