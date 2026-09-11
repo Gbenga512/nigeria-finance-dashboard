@@ -77,6 +77,14 @@ def list_accounts(business_id: int) -> list[dict[str, Any]]:
         return [dict(r) for r in conn.execute("SELECT * FROM accounts WHERE business_id=? AND active=1 ORDER BY name", (business_id,)).fetchall()]
 
 
+def _validate_account_for_business(conn: sqlite3.Connection, business_id: int, account_id: int | None) -> None:
+    if account_id is None:
+        return
+    row = conn.execute("SELECT id FROM accounts WHERE id=? AND business_id=? AND active=1", (int(account_id), business_id)).fetchone()
+    if not row:
+        raise ValueError("Selected account does not belong to the active business.")
+
+
 def add_transaction(business_id: int, transaction_date: str, description: str, amount: float, transaction_type: str, **fields: Any) -> int:
     if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}:
         raise ValueError("Unsupported transaction type.")
@@ -87,6 +95,7 @@ def add_transaction(business_id: int, transaction_date: str, description: str, a
     columns = ["business_id", "transaction_date", "description", "amount", "transaction_type"] + list(data)
     values = [business_id, transaction_date, str(description).strip(), float(amount), transaction_type] + [data[k] for k in data]
     with connect() as conn:
+        _validate_account_for_business(conn, business_id, data.get("account_id"))
         if data.get("import_key"):
             existing = conn.execute("SELECT id FROM transactions WHERE business_id=? AND import_key=?", (business_id, data["import_key"])).fetchone()
             if existing:
@@ -114,6 +123,7 @@ def bulk_add_transactions(business_id: int, rows: list[dict[str, Any]]) -> int:
                 amount = float(row["amount"])
                 if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"} or not description or amount <= 0:
                     continue
+                _validate_account_for_business(conn, business_id, row.get("account_id"))
                 import_key = row.get("import_key")
                 if import_key:
                     existing = conn.execute("SELECT id FROM transactions WHERE business_id=? AND import_key=?", (business_id, import_key)).fetchone()
