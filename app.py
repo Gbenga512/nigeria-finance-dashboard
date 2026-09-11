@@ -24,8 +24,9 @@ WORKSPACES = [
 ]
 
 
-def _request_mobile_navigation() -> None:
-    target = st.session_state.get("ng_mobile_nav")
+def _request_mobile_navigation(widget_key: str) -> None:
+    """Copy the selected mobile workspace into the navigation target."""
+    target = st.session_state.get(widget_key)
     if target in WORKSPACES:
         st.session_state["ng_nav_target"] = target
 
@@ -34,11 +35,13 @@ def mobile_workspace_navigator(current: str) -> None:
     """One-selection mobile navigation; changing the module immediately navigates."""
     st.markdown("### Workspace navigation")
     choices = [item for item in WORKSPACES if item != current]
+    widget_key = f"ng_mobile_nav_{current}"
     st.selectbox(
         "Open module",
         choices,
-        key=f"ng_mobile_nav_{current}",
+        key=widget_key,
         on_change=_request_mobile_navigation,
+        args=(widget_key,),
     )
 
 
