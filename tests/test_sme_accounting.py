@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from services.sme_store import connect, create_business, get_or_create_user, init_db
+from services.sme_store import connect, create_business, get_or_create_user, init_db, add_transaction
 from services.sme_accounting import (
     balance_sheet,
     ensure_standard_accounts,
@@ -10,19 +10,6 @@ from services.sme_accounting import (
     profit_and_loss,
     trial_balance,
 )
-
-
-def make_business(tmp_path: Path) -> int:
-    db = tmp_path / "test.db"
-    import services.sme_store as store
-    old = store.DB_PATH
-    store.DB_PATH = db
-    try:
-        init_db(db)
-        user = get_or_create_user("test-user")
-        return create_business(user, "Test Business")
-    finally:
-        store.DB_PATH = old
 
 
 def test_balanced_journal_and_trial_balance(tmp_path):
@@ -74,5 +61,20 @@ def test_profit_and_loss(tmp_path):
         assert pnl["Revenue"] == 200000
         assert pnl["Expenses"] == 50000
         assert pnl["Net Income"] == 150000
+    finally:
+        store.DB_PATH = old
+
+
+def test_transaction_cannot_reference_another_business_account(tmp_path):
+    import services.sme_store as store
+    db = tmp_path / "test.db"; old = store.DB_PATH; store.DB_PATH = db
+    try:
+        init_db(db)
+        user = get_or_create_user("u4")
+        first = create_business(user, "First")
+        second = create_business(user, "Second")
+        first_bank = next(a["id"] for a in store.list_accounts(first) if a["name"] == "Main Bank")
+        with pytest.raises(ValueError, match="does not belong"):
+            add_transaction(second, "2026-03-01", "Invalid cross-business transaction", 1000, "Expense", account_id=first_bank)
     finally:
         store.DB_PATH = old
