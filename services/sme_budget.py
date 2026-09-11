@@ -64,6 +64,7 @@ def list_budgets(business_id: int) -> pd.DataFrame:
 
 
 def variance_report(business_id: int, budget_id: int) -> pd.DataFrame:
+    """Compare budgeted account activity using normal statement direction."""
     ensure_budget_schema()
     with connect() as conn:
         budget = conn.execute("SELECT * FROM budgets WHERE id=? AND business_id=?", (budget_id, business_id)).fetchone()
@@ -71,10 +72,19 @@ def variance_report(business_id: int, budget_id: int) -> pd.DataFrame:
             raise ValueError("Budget not found for this business.")
         lines = pd.read_sql_query("SELECT bl.account_id, a.name AS Account, a.account_type, bl.amount AS Budget FROM budget_lines bl JOIN accounts a ON a.id=bl.account_id WHERE bl.budget_id=? ORDER BY a.name", conn, params=(budget_id,))
     tb = trial_balance(business_id, budget["period_start"], budget["period_end"])
-    actual = tb[["account_id", "Balance", "Type"]].copy() if not tb.empty else pd.DataFrame(columns=["account_id", "Balance", "Type"])
-    actual["Actual"] = actual["Balance"].abs() if not actual.empty else pd.Series(dtype=float)
+    actual = tb[["account_id", "Debits", "Credits", "Balance", "Type"]].copy() if not tb.empty else pd.DataFrame(columns=["account_id", "Debits", "Credits", "Balance", "Type"])
+    if not actual.empty:
+        actual["Actual"] = actual.apply(
+            lambda r: float(r["Credits"] - r["Debits"]) if r["Type"] == "Revenue"
+            else float(r["Debits"] - r["Credits"]) if r["Type"] == "Expense"
+            else float(r["Balance"]),
+            axis=1,
+        )
+    else:
+        actual["Actual"] = pd.Series(dtype=float)
     out = lines.merge(actual[["account_id", "Actual", "Type"]], on="account_id", how="left").fillna({"Actual": 0.0})
+    out["Type"] = out["Type"].fillna(out["account_type"].map(str))
     out["Variance"] = out["Actual"] - out["Budget"]
     out["Variance %"] = out.apply(lambda r: (r["Variance"] / r["Budget"] * 100) if r["Budget"] else None, axis=1)
-    out["Direction"] = out.apply(lambda r: "Over budget" if r["Variance"] > 0 else ("Under budget" if r["Variance"] < 0 else "On budget"), axis=1)
+    out["Direction"] = out.apply(lambda r: "Above budget" if r["Variance"] > 0 else ("Below budget" if r["Variance"] < 0 else "On budget"), axis=1)
     return out[["account_id", "Account", "Type", "Budget", "Actual", "Variance", "Variance %", "Direction"]]
