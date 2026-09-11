@@ -73,16 +73,10 @@ def ensure_standard_accounts(business_id: int) -> None:
 
 
 def _statement_type(account_type: str) -> str:
-    """Normalize legacy Phase-1 account labels to financial-statement classes."""
     return {
-        "Cash": "Asset",
-        "Receivable": "Asset",
-        "Payable": "Liability",
-        "Asset": "Asset",
-        "Liability": "Liability",
-        "Equity": "Equity",
-        "Revenue": "Revenue",
-        "Expense": "Expense",
+        "Cash": "Asset", "Receivable": "Asset", "Payable": "Liability",
+        "Asset": "Asset", "Liability": "Liability", "Equity": "Equity",
+        "Revenue": "Revenue", "Expense": "Expense",
     }.get(str(account_type), str(account_type))
 
 
@@ -108,7 +102,7 @@ def _assert_business_accounts(conn, business_id: int, account_ids: list[int]) ->
 def post_journal_entry(business_id: int, entry_date: str | date, description: str, lines: list[dict], reference: str = "", source: str = "Manual", source_transaction_id: int | None = None) -> int:
     """Atomically post a balanced journal entry; refuses any unbalanced entry."""
     ensure_accounting_schema()
-    if not description.strip() or len(lines) < 2:
+    if not str(description).strip() or len(lines) < 2:
         raise ValueError("Description and at least two journal lines are required.")
     clean = []
     total_debit = total_credit = 0.0
@@ -124,13 +118,17 @@ def post_journal_entry(business_id: int, entry_date: str | date, description: st
         raise ValueError(f"Journal is not balanced: debits ₦{total_debit:,.2f} vs credits ₦{total_credit:,.2f}.")
     if total_debit <= 0:
         raise ValueError("Journal amount must be greater than zero.")
+    try:
+        date.fromisoformat(str(entry_date))
+    except (TypeError, ValueError):
+        raise ValueError("Journal entry date must be a valid ISO date (YYYY-MM-DD).")
     with connect() as conn:
         _assert_business_accounts(conn, business_id, [x[0] for x in clean])
         if source_transaction_id is not None:
             existing = conn.execute("SELECT id FROM journal_entries WHERE source_transaction_id=?", (source_transaction_id,)).fetchone()
             if existing:
                 return int(existing["id"])
-        cur = conn.execute("INSERT INTO journal_entries(business_id,entry_date,description,reference,source,source_transaction_id) VALUES(?,?,?,?,?,?)", (business_id, str(entry_date), description.strip(), reference, source, source_transaction_id))
+        cur = conn.execute("INSERT INTO journal_entries(business_id,entry_date,description,reference,source,source_transaction_id) VALUES(?,?,?,?,?,?)", (business_id, str(entry_date), str(description).strip(), reference, source, source_transaction_id))
         entry_id = int(cur.lastrowid)
         conn.executemany("INSERT INTO journal_lines(journal_entry_id,account_id,description,debit,credit) VALUES(?,?,?,?,?)", [(entry_id, *x) for x in clean])
         conn.commit()
@@ -154,17 +152,11 @@ def journal_entries_df(business_id: int, start=None, end=None) -> pd.DataFrame:
 
 
 def trial_balance(business_id: int, start=None, end=None) -> pd.DataFrame:
-    """Return a uniquely keyed trial balance suitable for downstream joins."""
     ensure_standard_accounts(business_id)
     df = journal_entries_df(business_id, start, end)
-    accounts = account_catalog(business_id)[["id", "name", "statement_type", "opening_balance"]].rename(
-        columns={"id": "account_id", "name": "Account", "statement_type": "Type"}
-    )
+    accounts = account_catalog(business_id)[["id", "name", "statement_type", "opening_balance"]].rename(columns={"id": "account_id", "name": "Account", "statement_type": "Type"})
     if df.empty:
-        out = accounts.copy()
-        out["Debits"] = 0.0
-        out["Credits"] = 0.0
-        out["Balance"] = out["opening_balance"].astype(float)
+        out = accounts.copy(); out["Debits"] = 0.0; out["Credits"] = 0.0; out["Balance"] = out["opening_balance"].astype(float)
         return out[["account_id", "Account", "Type", "Debits", "Credits", "Balance"]]
     grouped = df.groupby("account_id", as_index=False).agg(Debits=("debit", "sum"), Credits=("credit", "sum"))
     out = accounts.merge(grouped, on="account_id", how="left").fillna({"Debits": 0.0, "Credits": 0.0})
@@ -190,17 +182,33 @@ def balance_sheet(business_id: int, end=None) -> dict:
 
 
 def cash_flow(business_id: int, start=None, end=None) -> pd.DataFrame:
+    """Build a direct cash-flow view and classify each cash movement by its counter-account."""
     df = journal_entries_df(business_id, start, end)
     accounts = account_catalog(business_id)
     cash_ids = set(accounts.loc[accounts["name"].isin(["Main Bank", "Cash on Hand"]), "id"].astype(int))
+    type_map = {int(r["id"]): r["statement_type"] for _, r in accounts.iterrows()}
     if df.empty or not cash_ids:
         return pd.DataFrame(columns=["Section", "Cash Inflow", "Cash Outflow", "Net Cash Flow"])
-    cash = df[df["account_id"].isin(cash_ids)].copy()
-    if cash.empty:
-        return pd.DataFrame(columns=["Section", "Cash Inflow", "Cash Outflow", "Net Cash Flow"])
-    cash["Section"] = "Operating"
-    inflow = float(cash["debit"].sum()); outflow = float(cash["credit"].sum())
-    return pd.DataFrame([{"Section": "Operating", "Cash Inflow": inflow, "Cash Outflow": outflow, "Net Cash Flow": inflow - outflow}])
+
+    totals = {"Operating": [0.0, 0.0], "Investing": [0.0, 0.0], "Financing": [0.0, 0.0]}
+    for _, entry in df.groupby("id", sort=False):
+        cash_lines = entry[entry["account_id"].isin(cash_ids)]
+        noncash_types = {_statement_type(type_map.get(int(account_id), "Unknown")) for account_id in entry.loc[~entry["account_id"].isin(cash_ids), "account_id"]}
+        if cash_lines.empty or not noncash_types:
+            continue
+        if noncash_types & {"Revenue", "Expense"}:
+            section = "Operating"
+        elif noncash_types & {"Liability", "Equity"}:
+            section = "Financing"
+        elif noncash_types & {"Asset"}:
+            section = "Investing"
+        else:
+            section = "Operating"
+        totals[section][0] += float(cash_lines["debit"].sum())
+        totals[section][1] += float(cash_lines["credit"].sum())
+
+    rows = [{"Section": section, "Cash Inflow": inflow, "Cash Outflow": outflow, "Net Cash Flow": inflow - outflow} for section, (inflow, outflow) in totals.items() if inflow or outflow]
+    return pd.DataFrame(rows, columns=["Section", "Cash Inflow", "Cash Outflow", "Net Cash Flow"])
 
 
 def sync_transaction(business_id: int, transaction_id: int) -> int | None:
