@@ -58,6 +58,7 @@ def test_cash_forecast_uses_opening_cash_and_returns_13_weeks():
     tx = pd.DataFrame([
         {"transaction_date":"2026-01-02","transaction_type":"Income","amount":100000},
         {"transaction_date":"2026-01-03","transaction_type":"Expense","amount":40000},
+        {"transaction_date":"2026-01-08","transaction_type":"Income","amount":70000},
         {"transaction_date":"2026-01-12","transaction_type":"Income","amount":120000},
         {"transaction_date":"2026-01-13","transaction_type":"Expense","amount":50000},
         {"transaction_date":"2026-01-20","transaction_type":"Income","amount":90000},
