@@ -1,5 +1,4 @@
 import pandas as pd
-from io import BytesIO
 
 from services.sme_import import parse_statement, suggest_categories
 
@@ -11,6 +10,22 @@ def test_parse_csv_does_not_post_and_detects_duplicates():
     assert out["duplicate"].sum() == 2
     assert out.loc[0, "transaction_type"] == "Expense"
     assert out.loc[1, "transaction_type"] == "Income"
+    assert out.loc[0, "direction_review_required"] is False
+
+
+def test_amount_only_positive_values_require_direction_review():
+    raw = b"Date,Description,Amount\n2026-01-01,Customer payment,120000\n"
+    out = parse_statement(raw, "bank.csv")
+    assert out.loc[0, "transaction_type"] == ""
+    assert bool(out.loc[0, "direction_review_required"])
+    assert bool(out.loc[0, "valid"])
+
+
+def test_signed_amounts_can_supply_direction_when_both_signs_exist():
+    raw = b"Date,Description,Amount\n2026-01-01,Rent,-50000\n2026-01-02,Customer payment,120000\n"
+    out = parse_statement(raw, "bank.csv")
+    assert out["transaction_type"].tolist() == ["Expense", "Income"]
+    assert not out["direction_review_required"].any()
 
 
 def test_category_learning_precedes_keyword_rules():
