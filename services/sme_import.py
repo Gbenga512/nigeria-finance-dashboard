@@ -1,6 +1,6 @@
 """Safe bank-statement import primitives for the SME finance module.
 
-The importer parses CSV/XLSX into a canonical review dataframe. It deliberately
+The importer parses CSV/XLS/XLSX into a canonical review dataframe. It deliberately
 never posts rows to the ledger; the UI must explicitly confirm posting.
 """
 from __future__ import annotations
@@ -33,13 +33,37 @@ def _find_column(columns, aliases):
 
 def _parse_amount(series: pd.Series) -> pd.Series:
     return pd.to_numeric(
-        series.astype(str).str.replace(",", "", regex=False).str.replace("₦", "", regex=False).str.replace("NGN", "", regex=False).str.strip(),
+        series.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("₦", "", regex=False)
+        .str.replace("NGN", "", regex=False)
+        .str.strip(),
         errors="coerce",
     )
 
 
+def _direction_from_columns(raw: pd.DataFrame, debit_col, credit_col, amount_col):
+    """Return amount, signed direction and whether manual direction review is needed."""
+    if debit_col or credit_col:
+        debit = _parse_amount(raw[debit_col]).fillna(0).abs() if debit_col else pd.Series(0.0, index=raw.index)
+        credit = _parse_amount(raw[credit_col]).fillna(0).abs() if credit_col else pd.Series(0.0, index=raw.index)
+        amount = debit + credit
+        signed = credit - debit
+        conflict = (debit > 0) & (credit > 0)
+        return amount, signed, conflict
+
+    signed = _parse_amount(raw[amount_col])
+    amount = signed.abs()
+    non_zero = signed.dropna()[signed.dropna() != 0]
+    # A single unsigned amount column cannot safely reveal whether a bank movement
+    # is money in or money out. Require a sign change in the source file or manual review.
+    ambiguous_file = bool(non_zero.empty or (non_zero.gt(0).all()) or (non_zero.lt(0).all()))
+    review = pd.Series(ambiguous_file, index=raw.index)
+    return amount, signed, review
+
+
 def parse_statement(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """Parse CSV/XLSX into a review dataframe without touching the ledger."""
+    """Parse a bank statement into a review dataframe without touching the ledger."""
     name = filename.lower()
     if name.endswith(".csv"):
         raw = pd.read_csv(io.BytesIO(file_bytes))
@@ -48,7 +72,7 @@ def parse_statement(file_bytes: bytes, filename: str) -> pd.DataFrame:
     else:
         raise ValueError("Supported bank statement formats are CSV and Excel.")
     if raw.empty:
-        return pd.DataFrame(columns=["transaction_date", "description", "amount", "reference", "import_key", "category", "transaction_type", "duplicate"])
+        return pd.DataFrame(columns=["transaction_date", "description", "amount", "reference", "import_key", "category", "transaction_type", "direction_review_required", "duplicate", "valid"])
 
     date_col = _find_column(raw.columns, DATE_ALIASES)
     desc_col = _find_column(raw.columns, DESC_ALIASES)
@@ -62,20 +86,24 @@ def parse_statement(file_bytes: bytes, filename: str) -> pd.DataFrame:
     out = pd.DataFrame()
     out["transaction_date"] = pd.to_datetime(raw[date_col], errors="coerce").dt.date.astype("string")
     out["description"] = raw[desc_col].astype(str).str.strip()
-    if amount_col:
-        out["amount"] = _parse_amount(raw[amount_col]).abs()
-        signed = _parse_amount(raw[amount_col])
-    else:
-        debit = _parse_amount(raw[debit_col]).fillna(0) if debit_col else pd.Series(0, index=raw.index)
-        credit = _parse_amount(raw[credit_col]).fillna(0) if credit_col else pd.Series(0, index=raw.index)
-        out["amount"] = (debit.abs() + credit.abs())
-        signed = credit.abs() - debit.abs()
+    amount, signed, direction_review = _direction_from_columns(raw, debit_col, credit_col, amount_col)
+    out["amount"] = amount
     out["reference"] = raw[ref_col].astype(str).str.strip() if ref_col else ""
-    out["transaction_type"] = signed.map(lambda x: "Income" if x > 0 else "Expense" if x < 0 else "Transfer")
+    out["direction_review_required"] = direction_review
+    out["transaction_type"] = signed.map(lambda x: "Income" if x > 0 else "Expense" if x < 0 else "")
+    out.loc[out["direction_review_required"], "transaction_type"] = ""
     out["category"] = ""
-    out["import_key"] = out.apply(lambda r: hashlib.sha256(f"{r['transaction_date']}|{r['description']}|{r['amount']:.2f}|{r['reference']}".encode()).hexdigest(), axis=1)
+    out["import_key"] = out.apply(
+        lambda r: hashlib.sha256(f"{r['transaction_date']}|{r['description']}|{r['amount']:.2f}|{r['reference']}".encode()).hexdigest(),
+        axis=1,
+    )
     out["duplicate"] = out["import_key"].duplicated(keep=False)
-    out["valid"] = out["transaction_date"].notna() & (out["description"].str.len() > 0) & out["amount"].notna() & (out["amount"] > 0)
+    out["valid"] = (
+        out["transaction_date"].notna()
+        & (out["description"].str.len() > 0)
+        & out["amount"].notna()
+        & (out["amount"] > 0)
+    )
     return out.reset_index(drop=True)
 
 
@@ -87,7 +115,9 @@ def detect_existing_duplicates(review: pd.DataFrame, existing: pd.DataFrame) -> 
         return out
     keys = set()
     for _, row in existing.iterrows():
-        key = hashlib.sha256(f"{pd.to_datetime(row['transaction_date']).date()}|{row['description']}|{float(row['amount']):.2f}|{row.get('reference', '')}".encode()).hexdigest()
+        key = hashlib.sha256(
+            f"{pd.to_datetime(row['transaction_date']).date()}|{row['description']}|{float(row['amount']):.2f}|{row.get('reference', '')}".encode()
+        ).hexdigest()
         keys.add(key)
     out["existing_duplicate"] = out["import_key"].isin(keys)
     return out
@@ -103,11 +133,15 @@ def suggest_categories(review: pd.DataFrame, history: pd.DataFrame | None = None
             if key and str(row.get("category", "")).strip():
                 learned[key] = str(row["category"]).strip()
     rules = [("salary", "Payroll"), ("wage", "Payroll"), ("rent", "Rent"), ("fuel", "Transport"), ("diesel", "Utilities"), ("electric", "Utilities"), ("internet", "Utilities"), ("bank charge", "Bank Charges"), ("transfer fee", "Bank Charges"), ("tax", "Tax")]
+
     def suggest(desc):
         d = str(desc).lower().strip()
-        if d in learned: return learned[d]
+        if d in learned:
+            return learned[d]
         for token, category in rules:
-            if token in d: return category
+            if token in d:
+                return category
         return ""
+
     out["suggested_category"] = out.apply(lambda r: suggest(r["description"]), axis=1)
     return out
