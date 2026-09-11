@@ -6,6 +6,7 @@ requests
 openai
 streamlit-autorefresh
 openpyxl
+xlrd
 pytest
 scikit-learn
 scipy
