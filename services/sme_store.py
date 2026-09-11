@@ -1,7 +1,9 @@
 """Persistent local store for the NG Finance Pro SME finance module."""
 from __future__ import annotations
 
+import math
 import sqlite3
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +59,7 @@ def list_businesses(user_id: int) -> list[dict[str, Any]]:
 
 def create_business(user_id: int, name: str, **fields: Any) -> int:
     init_db()
-    clean_name = name.strip()
+    clean_name = str(name).strip()
     if not clean_name:
         raise ValueError("Business name is required.")
     allowed = {"industry", "business_type", "cac_number", "tin", "location", "employees", "financial_year_end", "revenue_range", "accounting_basis", "currency"}
@@ -85,11 +87,19 @@ def _validate_account_for_business(conn: sqlite3.Connection, business_id: int, a
         raise ValueError("Selected account does not belong to the active business.")
 
 
+def _validate_transaction_fields(transaction_date: str, description: str, amount: float) -> None:
+    try:
+        date.fromisoformat(str(transaction_date))
+    except (TypeError, ValueError):
+        raise ValueError("Transaction date must be a valid ISO date (YYYY-MM-DD).")
+    if not str(description).strip() or not math.isfinite(float(amount)) or float(amount) <= 0:
+        raise ValueError("A description and finite positive transaction amount are required.")
+
+
 def add_transaction(business_id: int, transaction_date: str, description: str, amount: float, transaction_type: str, **fields: Any) -> int:
     if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}:
         raise ValueError("Unsupported transaction type.")
-    if not str(description).strip() or amount <= 0:
-        raise ValueError("A description and positive transaction amount are required.")
+    _validate_transaction_fields(transaction_date, description, amount)
     allowed = {"category", "account_id", "counterparty", "reference", "payment_method", "tax_amount", "notes", "attachment_path", "import_key", "source"}
     data = {k: v for k, v in fields.items() if k in allowed}
     columns = ["business_id", "transaction_date", "description", "amount", "transaction_type"] + list(data)
@@ -121,7 +131,8 @@ def bulk_add_transactions(business_id: int, rows: list[dict[str, Any]]) -> int:
                 transaction_type = str(row["transaction_type"])
                 description = str(row["description"]).strip()
                 amount = float(row["amount"])
-                if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"} or not description or amount <= 0:
+                _validate_transaction_fields(str(row["transaction_date"]), description, amount)
+                if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}:
                     continue
                 _validate_account_for_business(conn, business_id, row.get("account_id"))
                 import_key = row.get("import_key")
