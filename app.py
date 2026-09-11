@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
@@ -25,45 +26,48 @@ WORKSPACES = [
 
 
 def _request_mobile_navigation(widget_key: str) -> None:
-    """Copy the selected mobile workspace into the navigation target."""
     target = st.session_state.get(widget_key)
     if target in WORKSPACES:
         st.session_state["ng_nav_target"] = target
 
 
 def mobile_workspace_navigator(current: str) -> None:
-    """One-selection mobile navigation; changing the module immediately navigates."""
     st.markdown("### Workspace navigation")
     choices = [item for item in WORKSPACES if item != current]
     widget_key = f"ng_mobile_nav_{current}"
-    st.selectbox(
-        "Open module",
-        choices,
-        key=widget_key,
-        on_change=_request_mobile_navigation,
-        args=(widget_key,),
-    )
+    st.selectbox("Open module", choices, key=widget_key, on_change=_request_mobile_navigation, args=(widget_key,))
 
 
-# Apply a requested navigation target BEFORE creating the sidebar radio widget.
 nav_target = st.session_state.pop("ng_nav_target", None)
 if nav_target in WORKSPACES:
     st.session_state["ng_workspace_radio"] = nav_target
 elif st.session_state.get("ng_workspace_radio") not in WORKSPACES:
     st.session_state["ng_workspace_radio"] = WORKSPACES[0]
 
-page = st.sidebar.radio(
-    "Workspace",
-    WORKSPACES,
-    key="ng_workspace_radio",
-    label_visibility="visible",
-)
+page = st.sidebar.radio("Workspace", WORKSPACES, key="ng_workspace_radio", label_visibility="visible")
 mobile_workspace_navigator(page)
-
 st.sidebar.markdown('<div class="ng-upgrade"><div class="ng-upgrade-title">✦ Built for finance teams</div><div class="ng-upgrade-copy">Markets, treasury, risk and accounting intelligence in one workspace.</div></div>', unsafe_allow_html=True)
-if page not in {"🏢  SME Finance Department", "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts"}:
+
+market_pages = {
+    "📊  Dashboard", "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
+    "🧪  Quant Lab", "🔬  Research & Backtesting", "🌍  Emerging Markets Research",
+    "📉  GARCH Volatility Lab", "💱  Liquidity & FX Risk", "🛡️  Risk Robustness Lab",
+    "📈  Markets", "🤖  AI Insights", "🛡️  Risk Monitor", "📐  Portfolio Risk", "📄  Executive Reports",
+}
+if page in market_pages:
     st_autorefresh(interval=300000, key="market_refresh")
-snapshot = market_snapshot(); st.sidebar.divider(); st.sidebar.markdown('<span class="ng-status">● LIVE DATA</span>',unsafe_allow_html=True); st.sidebar.caption(f"Updated {datetime.now().strftime('%d %b %Y • %H:%M')}"); st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
+    snapshot = market_snapshot()
+    live_count = int((snapshot["Data"] == "Live").sum()) if "Data" in snapshot.columns else 0
+    status_label = "● LIVE MARKET DATA" if live_count else "● MARKET DATA UNAVAILABLE"
+    st.sidebar.divider()
+    st.sidebar.markdown(f'<span class="ng-status">{status_label}</span>', unsafe_allow_html=True)
+    st.sidebar.caption(f"Updated {datetime.now().strftime('%d %b %Y • %H:%M')}")
+    st.sidebar.caption("Yahoo Finance • AI/news integrations optional")
+else:
+    snapshot = pd.DataFrame()
+    st.sidebar.divider()
+    st.sidebar.markdown('<span class="ng-status">● FINANCE WORKSPACE</span>', unsafe_allow_html=True)
+
 if page == "📊  Dashboard": insight, _ = generate_ai_insight(snapshot); dashboard.render(snapshot, insight)
 elif page == "🏢  SME Finance Department":
     from pages import sme_finance
