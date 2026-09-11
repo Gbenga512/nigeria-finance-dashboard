@@ -40,6 +40,7 @@ def test_all_page_modules_import_and_expose_render():
 def test_management_accounts_calculations(tmp_path):
     db, old, bid, a = setup(tmp_path)
     try:
+        post_journal_entry(bid, "2025-12-20", "Prior COGS", [{"account_id":a["Cost of Goods Sold"],"debit":50000},{"account_id":a["Main Bank"],"credit":50000}])
         post_journal_entry(bid, "2026-01-05", "Sale", [{"account_id":a["Main Bank"],"debit":200000},{"account_id":a["Sales Revenue"],"credit":200000}])
         post_journal_entry(bid, "2026-01-06", "COGS", [{"account_id":a["Cost of Goods Sold"],"debit":80000},{"account_id":a["Main Bank"],"credit":80000}])
         post_journal_entry(bid, "2026-01-07", "Rent", [{"account_id":a["Rent"],"debit":30000},{"account_id":a["Main Bank"],"credit":30000}])
@@ -66,13 +67,19 @@ def test_cash_forecast_uses_opening_cash_and_returns_13_weeks():
     assert result["status"] == "BASELINE"
 
 
-def test_budget_variance(tmp_path):
+def test_budget_variance_respects_revenue_and_expense_signs(tmp_path):
     db, old, bid, a = setup(tmp_path)
     try:
         post_journal_entry(bid, "2026-02-05", "Sale", [{"account_id":a["Main Bank"],"debit":150000},{"account_id":a["Sales Revenue"],"credit":150000}])
-        budget = create_budget(bid, "February Budget", "2026-02-01", "2026-02-28", [{"account_id":a["Sales Revenue"],"amount":100000}])
-        vr = variance_report(bid, budget)
-        assert float(vr.iloc[0]["Actual"]) == 150000
-        assert float(vr.iloc[0]["Variance"]) == 50000
+        post_journal_entry(bid, "2026-02-06", "Rent", [{"account_id":a["Rent"],"debit":40000},{"account_id":a["Main Bank"],"credit":40000}])
+        budget = create_budget(bid, "February Budget", "2026-02-01", "2026-02-28", [
+            {"account_id":a["Sales Revenue"],"amount":100000},
+            {"account_id":a["Rent"],"amount":50000},
+        ])
+        vr = variance_report(bid, budget).set_index("Account")
+        assert float(vr.loc["Sales Revenue", "Actual"]) == 150000
+        assert float(vr.loc["Sales Revenue", "Variance"]) == 50000
+        assert float(vr.loc["Rent", "Actual"]) == 40000
+        assert float(vr.loc["Rent", "Variance"]) == -10000
     finally:
         store.DB_PATH = old
