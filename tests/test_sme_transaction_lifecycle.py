@@ -41,20 +41,16 @@ def test_posted_transaction_is_locked(tmp_path, monkeypatch):
 
     # Create the minimum accounting link used by the protection rule.
     with sme_store.connect() as conn:
-        conn.executescript(
-            """
-            CREATE TABLE journal_entries (
-                id INTEGER PRIMARY KEY,
-                business_id INTEGER NOT NULL,
-                source_transaction_id INTEGER UNIQUE,
-                status TEXT NOT NULL
-            );
-            INSERT INTO journal_entries(id, business_id, source_transaction_id, status)
-            VALUES (1, ?, ?, 'Posted');
-            """,
-        , (business_id, tx_id))
+        conn.execute(
+            "CREATE TABLE journal_entries (id INTEGER PRIMARY KEY, business_id INTEGER NOT NULL, source_transaction_id INTEGER UNIQUE, status TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO journal_entries(id, business_id, source_transaction_id, status) VALUES (?, ?, ?, 'Posted')",
+            (1, business_id, tx_id),
+        )
+        conn.commit()
+        assert sme_store.transaction_has_posted_journal(conn, business_id, tx_id) is True
 
-    assert sme_store.transaction_has_posted_journal(sme_store.connect(), business_id, tx_id) is True
     with pytest.raises(ValueError, match="already posted"):
         sme_store.update_transaction(business_id, tx_id, description="Changed")
     with pytest.raises(ValueError, match="already posted"):
