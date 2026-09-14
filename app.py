@@ -14,7 +14,7 @@ inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
 WORKSPACES = [
     "📊  Dashboard", "🏢  SME Finance Department", "🏦  SME Bank Statements",
-    "📚  SME Accounting & Statements", "📘  SME Management Accounts",
+    "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers",
     "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
     "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab",
     "🔬  Research & Backtesting", "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab",
@@ -81,6 +81,9 @@ elif page == "📚  SME Accounting & Statements":
 elif page == "📘  SME Management Accounts":
     from pages import sme_management
     sme_management.render()
+elif page == "👥  Customers & Suppliers":
+    from pages import sme_parties
+    sme_parties.render()
 elif page == "🧠  Intelligence Centre": intelligence.render(snapshot)
 elif page == "🎯  Integrated Risk Command Centre": integrated_risk.render(snapshot)
 elif page == "📁  Finance Data Workspace": data_workspace.render()
