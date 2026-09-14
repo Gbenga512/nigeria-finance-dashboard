@@ -21,6 +21,9 @@ CREATE INDEX IF NOT EXISTS idx_business_transactions_type ON transactions(busine
 CREATE INDEX IF NOT EXISTS idx_business_transactions_import ON transactions(business_id, import_key);
 """
 
+TRANSACTION_TYPES = {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}
+EDITABLE_FIELDS = {"transaction_date", "description", "amount", "transaction_type", "category", "account_id", "counterparty", "reference", "payment_method", "tax_amount", "notes"}
+
 
 def connect(path: Path | str = DB_PATH) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -97,7 +100,7 @@ def _validate_transaction_fields(transaction_date: str, description: str, amount
 
 
 def add_transaction(business_id: int, transaction_date: str, description: str, amount: float, transaction_type: str, **fields: Any) -> int:
-    if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}:
+    if transaction_type not in TRANSACTION_TYPES:
         raise ValueError("Unsupported transaction type.")
     _validate_transaction_fields(transaction_date, description, amount)
     allowed = {"category", "account_id", "counterparty", "reference", "payment_method", "tax_amount", "notes", "attachment_path", "import_key", "source"}
@@ -111,6 +114,58 @@ def add_transaction(business_id: int, transaction_date: str, description: str, a
             if existing:
                 return int(existing["id"])
         return int(conn.execute(f"INSERT INTO transactions({','.join(columns)}) VALUES({','.join('?' for _ in values)})", values).lastrowid)
+
+
+def _journal_table_exists(conn: sqlite3.Connection) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='journal_entries'").fetchone() is not None
+
+
+def transaction_has_posted_journal(conn: sqlite3.Connection, business_id: int, transaction_id: int) -> bool:
+    """Return whether an operational transaction is already linked to accounting."""
+    if not _journal_table_exists(conn):
+        return False
+    row = conn.execute(
+        "SELECT 1 FROM journal_entries WHERE business_id=? AND source_transaction_id=? AND status='Posted' LIMIT 1",
+        (business_id, transaction_id),
+    ).fetchone()
+    return row is not None
+
+
+def update_transaction(business_id: int, transaction_id: int, **fields: Any) -> None:
+    """Update an unposted transaction; posted accounting transactions are immutable."""
+    data = {k: v for k, v in fields.items() if k in EDITABLE_FIELDS}
+    if not data:
+        raise ValueError("No editable transaction fields were supplied.")
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM transactions WHERE id=? AND business_id=?", (transaction_id, business_id)).fetchone()
+        if not row:
+            raise ValueError("Transaction was not found for the active business.")
+        if transaction_has_posted_journal(conn, business_id, transaction_id):
+            raise ValueError("This transaction is already posted to accounting and cannot be edited here. Use an accounting correction workflow.")
+        merged = dict(row)
+        merged.update(data)
+        if merged["transaction_type"] not in TRANSACTION_TYPES:
+            raise ValueError("Unsupported transaction type.")
+        _validate_transaction_fields(str(merged["transaction_date"]), str(merged["description"]), float(merged["amount"]))
+        _validate_account_for_business(conn, business_id, merged.get("account_id"))
+        if "tax_amount" in merged and merged["tax_amount"] is not None and (not math.isfinite(float(merged["tax_amount"])) or float(merged["tax_amount"]) < 0):
+            raise ValueError("Tax / VAT amount must be finite and non-negative.")
+        assignments = ",".join(f"{key}=?" for key in data)
+        values = [merged[key] for key in data] + [transaction_id, business_id]
+        conn.execute(f"UPDATE transactions SET {assignments}, updated_at=CURRENT_TIMESTAMP WHERE id=? AND business_id=?", values)
+        conn.commit()
+
+
+def delete_transaction(business_id: int, transaction_id: int) -> None:
+    """Delete an unposted transaction; posted accounting transactions require correction instead."""
+    with connect() as conn:
+        row = conn.execute("SELECT id FROM transactions WHERE id=? AND business_id=?", (transaction_id, business_id)).fetchone()
+        if not row:
+            raise ValueError("Transaction was not found for the active business.")
+        if transaction_has_posted_journal(conn, business_id, transaction_id):
+            raise ValueError("This transaction is already posted to accounting and cannot be deleted. Use an accounting correction workflow.")
+        conn.execute("DELETE FROM transactions WHERE id=? AND business_id=?", (transaction_id, business_id))
+        conn.commit()
 
 
 def transactions_df(business_id: int):
@@ -132,7 +187,7 @@ def bulk_add_transactions(business_id: int, rows: list[dict[str, Any]]) -> int:
                 description = str(row["description"]).strip()
                 amount = float(row["amount"])
                 _validate_transaction_fields(str(row["transaction_date"]), description, amount)
-                if transaction_type not in {"Income", "Expense", "Transfer", "Receipt", "Supplier Payment"}:
+                if transaction_type not in TRANSACTION_TYPES:
                     continue
                 _validate_account_for_business(conn, business_id, row.get("account_id"))
                 import_key = row.get("import_key")
