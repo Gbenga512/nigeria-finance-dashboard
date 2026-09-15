@@ -1,6 +1,7 @@
 import pytest
 
 from services import sme_store
+from services import sme_accounting
 
 
 def test_unposted_transaction_can_be_updated_and_deleted(tmp_path, monkeypatch):
@@ -39,16 +40,25 @@ def test_posted_transaction_is_locked(tmp_path, monkeypatch):
     business_id = sme_store.create_business(user_id, "Test Business")
     tx_id = sme_store.add_transaction(business_id, "2026-09-01", "Sale", 10000, "Income")
 
-    # Create the minimum accounting link used by the protection rule.
+    # Use the real accounting engine rather than recreating a partial schema.
+    sme_accounting.ensure_standard_accounts(business_id)
+    accounts = sme_accounting.account_catalog(business_id)
+    bank_id = int(accounts.loc[accounts["name"] == "Main Bank", "id"].iloc[0])
+    revenue_id = int(accounts.loc[accounts["name"] == "Sales Revenue", "id"].iloc[0])
+    journal_id = sme_accounting.post_journal_entry(
+        business_id,
+        "2026-09-01",
+        "Sale",
+        [
+            {"account_id": bank_id, "debit": 10000},
+            {"account_id": revenue_id, "credit": 10000},
+        ],
+        source="Transaction sync",
+        source_transaction_id=tx_id,
+    )
+    assert journal_id > 0
+
     with sme_store.connect() as conn:
-        conn.execute(
-            "CREATE TABLE journal_entries (id INTEGER PRIMARY KEY, business_id INTEGER NOT NULL, source_transaction_id INTEGER UNIQUE, status TEXT NOT NULL)"
-        )
-        conn.execute(
-            "INSERT INTO journal_entries(id, business_id, source_transaction_id, status) VALUES (?, ?, ?, 'Posted')",
-            (1, business_id, tx_id),
-        )
-        conn.commit()
         assert sme_store.transaction_has_posted_journal(conn, business_id, tx_id) is True
 
     with pytest.raises(ValueError, match="already posted"):
