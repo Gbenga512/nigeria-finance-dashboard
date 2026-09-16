@@ -1,94 +1,95 @@
 from __future__ import annotations
-
 from datetime import date
-
 import plotly.express as px
 import streamlit as st
-
 from services import personal_finance
+
+
+def money(v: float, symbol: str = "₦") -> str:
+    return f"{symbol}{v:,.2f}"
 
 
 def render() -> None:
     personal_finance.ensure_schema()
+    s = personal_finance.settings(); symbol = s["symbol"]
     st.title("👤 Personal Finance")
-    st.caption("Track personal income, spending, savings, debt and investments in NG Finance Pro.")
-
+    st.caption("Professional personal finance workspace — cash management, 50/30/20 planning, statements, net worth and financial health.")
     today = date.today()
-    c1, c2 = st.columns(2)
-    with c1:
-        start = st.date_input("From", today.replace(day=1), key="pf_start")
-    with c2:
-        end = st.date_input("To", today, key="pf_end")
-    if start > end:
-        st.error("The start date must be before the end date.")
-        return
+    c1, c2, c3 = st.columns(3)
+    with c1: start = st.date_input("From", today.replace(day=1), key="pf_start")
+    with c2: end = st.date_input("To", today, key="pf_end")
+    with c3: year = st.number_input("Fiscal Year", 2000, 2100, int(s["fiscal_year"]), key="pf_year")
+    if start > end: st.error("The start date must be before the end date."); return
 
-    metrics = personal_finance.dashboard_metrics(start.isoformat(), end.isoformat())
+    m = personal_finance.dashboard_metrics(start.isoformat(), end.isoformat())
     cols = st.columns(5)
-    cards = [
-        ("Income", metrics["income"]),
-        ("Expenses", metrics["expenses"]),
-        ("Net Cash Flow", metrics["net_cash_flow"]),
-        ("Savings", metrics["savings"]),
-        ("Investments", metrics["investments"]),
-    ]
-    for col, (label, value) in zip(cols, cards):
-        col.metric(label, f"₦{value:,.2f}")
+    for col, (label, value) in zip(cols, [("Total Income",m["income"]),("Total Expenses",m["expenses"]),("Net Savings",m["income"]-m["expenses"]),("Savings / Investment",m["savings"]),("Debt Payments",m["debt_payments"])]): col.metric(label, money(value,symbol))
+    if m["savings_rate"] is not None: st.caption(f"Savings rate: {m['savings_rate']:.1f}% • {m['transaction_count']} transactions")
 
-    if metrics["savings_rate"] is not None:
-        st.caption(f"Savings rate: {metrics['savings_rate']:.1f}% • {metrics['transaction_count']} tracked transactions")
-
-    tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Transactions", "Budget", "Accounts"])
-
-    with tab1:
-        spending = personal_finance.spending_by_category(start.isoformat(), end.isoformat())
-        if spending.empty:
-            st.info("No expense transactions exist for this period yet.")
-        else:
-            fig = px.bar(spending, x="category", y="amount", title="Spending by Category")
-            fig.update_layout(yaxis_title="Amount (₦)", xaxis_title="")
-            st.plotly_chart(fig, use_container_width=True)
-        nw = personal_finance.net_worth()
-        st.subheader("Financial Position")
-        st.info(nw["status"])
-        st.metric("Tracked Cash Movement", f"₦{nw['tracked_cash_movement']:,.2f}")
-
-    with tab2:
-        st.subheader("Add Transaction")
-        accts = personal_finance.accounts()
-        with st.form("personal_transaction_form", clear_on_submit=True):
-            d, desc = st.columns(2)
-            tx_date = d.date_input("Date", today)
-            description = desc.text_input("Description")
-            a, typ, cat = st.columns(3)
-            amount = a.number_input("Amount (₦)", min_value=0.01, step=100.0, format="%.2f")
-            tx_type = typ.selectbox("Type", personal_finance.PERSONAL_TYPES)
-            categories = personal_finance.DEFAULT_CATEGORIES.get(tx_type, ["Other"])
-            category = cat.selectbox("Category", categories)
-            account_options = dict(zip(accts["name"], accts["id"]))
-            account_name = st.selectbox("Account", list(account_options))
-            reference = st.text_input("Reference")
-            notes = st.text_area("Notes")
-            submitted = st.form_submit_button("Save Transaction", type="primary")
-            if submitted:
-                try:
-                    personal_finance.add_transaction(tx_date.isoformat(), description, amount, tx_type, category, int(account_options[account_name]), reference, notes)
-                    st.success("Transaction saved.")
-                except ValueError as exc:
-                    st.error(str(exc))
-
+    tabs = st.tabs(["Dashboard","Income & Expenses","Budget","Statements","Net Worth","Financial Ratios","Settings"])
+    with tabs[0]:
+        st.subheader("50 / 30 / 20 Allocation")
         df = personal_finance.transactions(start.isoformat(), end.isoformat())
-        st.subheader("Transaction Register")
-        if df.empty:
-            st.info("No transactions in the selected period.")
-        else:
-            st.dataframe(df[["transaction_date", "description", "transaction_type", "category", "amount", "account_name", "reference"]], use_container_width=True, hide_index=True)
-
-    with tab3:
-        st.subheader("Personal Budget")
-        st.info("Budget envelopes are part of the next implementation layer. The transaction engine is ready to receive the Excel-based rules and categories.")
-
-    with tab4:
-        st.subheader("Personal Accounts")
-        st.dataframe(accts[["name", "account_type", "opening_balance"]], use_container_width=True, hide_index=True)
-        st.caption("Account opening balances, assets, liabilities and full net-worth accounting will be mapped from the user's reference specification before production release.")
+        income=m["income"]
+        need=float(df.loc[(df.transaction_type=="Expense")&(df.classification=="Need"),"amount"].sum()) if not df.empty else 0.0
+        want=float(df.loc[(df.transaction_type=="Expense")&(df.classification=="Want"),"amount"].sum()) if not df.empty else 0.0
+        sav=m["savings"]
+        a,b,c=st.columns(3); a.metric("Needs",f"{need/income*100:.1f}%" if income else "—",f"Target {s['needs_target']*100:.0f}%"); b.metric("Wants",f"{want/income*100:.1f}%" if income else "—",f"Target {s['wants_target']*100:.0f}%"); c.metric("Savings / Investment",f"{sav/income*100:.1f}%" if income else "—",f"Target {s['savings_target']*100:.0f}%")
+        monthly=personal_finance.monthly_statement(int(year)); chart=monthly.melt(id_vars="Month",value_vars=["Income","Expenses"],var_name="Metric",value_name="Amount")
+        st.plotly_chart(px.bar(chart,x="Month",y="Amount",color="Metric",barmode="group",title="Monthly Income vs Expenses"),use_container_width=True)
+        spend=personal_finance.spending_by_category(start.isoformat(),end.isoformat())
+        if not spend.empty: st.plotly_chart(px.pie(spend,names="category",values="amount",title="Expense Mix"),use_container_width=True)
+    with tabs[1]:
+        st.subheader("Record Transaction")
+        accts=personal_finance.accounts(); opts=dict(zip(accts.name,accts.id)); typ=st.selectbox("Transaction Type",personal_finance.PERSONAL_TYPES,key="pf_type")
+        cat_df=personal_finance.categories(typ); cat_options=cat_df.name.tolist() or ["Other"]
+        with st.form("pf_tx",clear_on_submit=True):
+            d,desc=st.columns(2); tx_date=d.date_input("Date",today); description=desc.text_input("Description")
+            a,c,acc=st.columns(3); amount=a.number_input(f"Amount ({symbol})",min_value=0.01,step=100.0); category=c.selectbox("Category",cat_options); account=acc.selectbox("Account",list(opts))
+            payment=st.text_input("Payment Method"); ref=st.text_input("Reference"); notes=st.text_area("Notes")
+            if st.form_submit_button("Save Transaction",type="primary"):
+                try: personal_finance.add_transaction(tx_date.isoformat(),description,amount,typ,category,int(opts[account]),payment,ref,notes); st.success("Transaction saved."); st.rerun()
+                except ValueError as exc: st.error(str(exc))
+        tx=personal_finance.transactions(start.isoformat(),end.isoformat())
+        if tx.empty: st.info("No transactions for the selected period.")
+        else: st.dataframe(tx[["transaction_date","transaction_type","category","classification","description","amount","account_name","payment_method","reference"]],use_container_width=True,hide_index=True)
+    with tabs[2]:
+        st.subheader("Monthly Budget")
+        month=st.date_input("Budget month",today.replace(day=1),key="pf_budget_month").strftime("%Y-%m")
+        cats=personal_finance.categories("Expense").name.tolist(); selected=st.selectbox("Category",cats); amount=st.number_input(f"Monthly Budget ({symbol})",min_value=0.0,step=1000.0,key="pf_budget_amount")
+        if st.button("Save Budget",key="pf_save_budget"):
+            personal_finance.set_budget(month,selected,amount); st.success("Budget saved.")
+        bv=personal_finance.budget_variance(month)
+        if bv.empty: st.info("No budget or expense data for this month.")
+        else: st.dataframe(bv,use_container_width=True,hide_index=True); st.download_button("Export Budget CSV",bv.to_csv(index=False),"personal_budget.csv","text/csv")
+    with tabs[3]:
+        st.subheader("Income Statement")
+        stmt=personal_finance.monthly_statement(int(year)); st.dataframe(stmt,use_container_width=True,hide_index=True); st.download_button("Export Income Statement CSV",stmt.to_csv(index=False),"personal_income_statement.csv","text/csv")
+        st.subheader("Cash Flow Statement")
+        cf=stmt[["Month","Income","Expenses","Net Savings"]].copy(); opening=float(s["opening_cash"]); cf["Opening Balance"]=[opening+float(cf.loc[:i-1,"Net Savings"].sum()) for i in range(len(cf))]; cf["Closing Balance"]=cf["Opening Balance"]+cf["Net Savings"]; st.dataframe(cf[["Month","Opening Balance","Income","Expenses","Net Savings","Closing Balance"]],use_container_width=True,hide_index=True)
+    with tabs[4]:
+        st.subheader("Net Worth")
+        nw=personal_finance.net_worth(); x,y,z=st.columns(3); x.metric("Total Assets",money(nw["assets"],symbol)); y.metric("Total Liabilities",money(nw["liabilities"],symbol)); z.metric("Net Worth",money(nw["net_worth"],symbol)); st.caption(nw["status"])
+        with st.form("pf_nw"):
+            name=st.text_input("Asset / Liability name"); typ=st.selectbox("Type",["Asset","Liability"]); val=st.number_input(f"Balance ({symbol})",min_value=0.0,step=1000.0)
+            if st.form_submit_button("Save Balance"):
+                try: personal_finance.set_net_worth_item(name,typ,val); st.success("Balance saved."); st.rerun()
+                except ValueError as exc: st.error(str(exc))
+        with personal_finance.connect() as conn: items=__import__('pandas').read_sql_query("SELECT item_name,item_type,amount,as_of_date FROM personal_net_worth ORDER BY item_type,item_name",conn)
+        if not items.empty: st.dataframe(items,use_container_width=True,hide_index=True)
+    with tabs[5]:
+        st.subheader("Financial Ratios & KPIs")
+        ratios=personal_finance.financial_ratios(start.isoformat(),end.isoformat())
+        target={"Savings Rate":s["savings_target"],"Expense-to-Income Ratio":1-s["savings_target"],"Needs Ratio":s["needs_target"],"Wants Ratio":s["wants_target"],"Savings/Investment Ratio":s["savings_target"],"Debt Repayment Ratio":s["debt_ratio_target"],"Emergency Fund Coverage (months)":s["emergency_months_target"]}
+        rows=[]
+        for k,v in ratios.items():
+            tv=target.get(k); status="Informational" if tv is None or v is None else ("On Target" if (v>=tv if k in ["Savings Rate","Savings/Investment Ratio","Emergency Fund Coverage (months)"] else v<=tv) else ("Below Target" if k in ["Savings Rate","Savings/Investment Ratio","Emergency Fund Coverage (months)"] else "Above Target")); rows.append({"Metric":k,"Actual":v,"Target":tv,"Status":status})
+        st.dataframe(__import__('pandas').DataFrame(rows),use_container_width=True,hide_index=True)
+    with tabs[6]:
+        st.subheader("Settings & Assumptions")
+        currency=st.selectbox("Base Currency",["NGN","USD","GBP","EUR"],index=["NGN","USD","GBP","EUR"].index(s["currency"]) if s["currency"] in ["NGN","USD","GBP","EUR"] else 0)
+        symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]));
+        if st.button("Save Settings",key="pf_settings"):
+            if abs((n+w+sv)-1)>1e-9: st.error("Needs, Wants and Savings/Investment targets must total 100%.")
+            else: personal_finance.update_settings(currency=currency,symbol=symbol_map[currency],fiscal_year=fy,opening_cash=opening,needs_target=n,wants_target=w,savings_target=sv,debt_ratio_target=dr,emergency_months_target=em); st.success("Settings saved."); st.rerun()
+        st.caption("The application is a financial-management tool. Ratio targets are configurable planning assumptions, not individualized financial advice.")
