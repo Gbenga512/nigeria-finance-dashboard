@@ -13,7 +13,7 @@ st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide",
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
 WORKSPACES = [
-    "📊  Dashboard", "🏢  SME Finance Department", "🏦  SME Bank Statements",
+    "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "🏦  SME Bank Statements",
     "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers",
     "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
     "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab",
@@ -72,6 +72,9 @@ if page == "📊  Dashboard": insight, _ = generate_ai_insight(snapshot); dashbo
 elif page == "🏢  SME Finance Department":
     from pages import sme_finance
     sme_finance.render()
+elif page == "👤  Personal Finance":
+    from pages import personal_finance
+    personal_finance.render()
 elif page == "🏦  SME Bank Statements":
     from pages import sme_bank_import
     sme_bank_import.render()
