@@ -6,11 +6,23 @@ from config.settings import MARKET_SYMBOLS
 from services.market_data import market_snapshot
 from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
+from services import personal_finance as personal_finance_service
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk, data_controls
 from ng_ui import inject_styles, brand, footer
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
+
+# Compatibility layer for the Personal Finance UI. The engine's canonical
+# field is net_cash_flow; the UI's Net Savings KPI is income less expenses.
+_pf_dashboard_metrics = personal_finance_service.dashboard_metrics
+
+def _pf_dashboard_metrics_compat(start: str, end: str) -> dict:
+    metrics = _pf_dashboard_metrics(start, end)
+    metrics.setdefault("net_savings", metrics.get("income", 0.0) - metrics.get("expenses", 0.0))
+    return metrics
+
+personal_finance_service.dashboard_metrics = _pf_dashboard_metrics_compat
 
 WORKSPACES = [
     "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "🏦  SME Bank Statements",
