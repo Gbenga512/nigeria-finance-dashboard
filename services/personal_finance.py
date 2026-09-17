@@ -71,8 +71,6 @@ def ensure_schema() -> None:
         """)
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute("INSERT OR IGNORE INTO personal_settings(key,value) VALUES (?,?)", (key, str(value)))
-        # Names are globally unique. Some labels intentionally recur across transaction
-        # types, so seed idempotently and retain the first canonical definition.
         rows = [(name, typ, cls) for typ, vals in DEFAULT_CATEGORIES.items() for name, cls in vals]
         conn.executemany(
             "INSERT OR IGNORE INTO personal_categories(name,category_type,classification) VALUES (?,?,?)",
@@ -252,9 +250,17 @@ def dashboard_metrics(start: str, end: str) -> dict:
     savings = float(df.loc[df.transaction_type.isin(["Savings", "Investment"]), "amount"].sum()) if not df.empty else 0.0
     debt = float(df.loc[df.transaction_type == "Debt Payment", "amount"].sum()) if not df.empty else 0.0
     investments = float(df.loc[df.transaction_type == "Investment", "amount"].sum()) if not df.empty else 0.0
-    return {"income": income, "expenses": expenses, "net_cash_flow": income - expenses - savings - debt, "savings": savings,
-            "investments": investments, "debt_payments": debt, "savings_rate": savings / income * 100 if income else None,
-            "transaction_count": int(len(df))}
+    return {
+        "income": income,
+        "expenses": expenses,
+        "net_savings": income - expenses,
+        "net_cash_flow": income - expenses - savings - debt,
+        "savings": savings,
+        "investments": investments,
+        "debt_payments": debt,
+        "savings_rate": savings / income * 100 if income else None,
+        "transaction_count": int(len(df)),
+    }
 
 
 def spending_by_category(start: str, end: str) -> pd.DataFrame:
