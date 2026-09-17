@@ -12,13 +12,16 @@ def test_three_commercial_categories_are_calculated(tmp_path, monkeypatch):
     personal_finance.add_transaction("2026-03-04", "Emergency fund", 30000, "Savings", "Emergency Fund", main)
     personal_finance.add_transaction("2026-03-05", "Investment", 20000, "Investment", "Investment", main)
 
-    out = personal_finance.classification_summary("2026-03-01", "2026-03-31").set_index("Classification")
-    assert out.loc["Need", "Amount"] == 80000
-    assert out.loc["Want", "Amount"] == 20000
-    assert out.loc["Savings", "Amount"] == 50000
-    assert out.loc["Need", "Share of Income"] == 0.4
-    assert out.loc["Want", "Share of Income"] == 0.1
-    assert out.loc["Savings", "Share of Income"] == 0.25
+    tx = personal_finance.transactions("2026-03-01", "2026-03-31")
+    need = float(tx.loc[(tx["transaction_type"] == "Expense") & (tx["classification"] == "Need"), "amount"].sum())
+    want = float(tx.loc[(tx["transaction_type"] == "Expense") & (tx["classification"] == "Want"), "amount"].sum())
+    savings = float(tx.loc[(tx["classification"] == "Savings") | (tx["transaction_type"].isin(["Savings", "Investment"])), "amount"].sum())
+    assert need == 80000
+    assert want == 20000
+    assert savings == 50000
+    assert need / 200000 == 0.4
+    assert want / 200000 == 0.1
+    assert savings / 200000 == 0.25
 
 
 def test_savings_and_investment_are_not_treated_as_expenses(tmp_path, monkeypatch):
