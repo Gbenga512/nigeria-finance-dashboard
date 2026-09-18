@@ -11,6 +11,7 @@ from services import personal_net_worth_history as nw_history
 from services import personal_debt_payments as debt_payments
 from services import personal_investment_history as investment_history
 from analytics import personal_allocation
+from analytics import personal_health
 
 
 def money(v: float, symbol: str = "₦") -> str:
@@ -311,11 +312,21 @@ def render() -> None:
         st.caption("Emergency coverage is calculated from liquid cash/savings divided by average monthly essential (Need-classified) expenses in the selected period.")
 
     with tabs[11]:
-        st.subheader("Financial Health Intelligence"); health=pfi.financial_health(start_s,end_s); st.info(health["data_quality"])
+        st.subheader("Financial Health Intelligence")
+        health=pfi.financial_health(start_s,end_s)
+        score=personal_health.health_score(start_s,end_s)
+        x,y=st.columns(2)
+        x.metric("Financial Health Indicator",f"{score['score']:.1f} / 100",score["label"])
+        y.info(score["status"])
+        st.dataframe(score["components"],use_container_width=True,hide_index=True)
+        st.divider()
         for item in health["findings"]:
-            with st.container(border=True): st.markdown(f"**{item['Metric']}** — {item['Status']}"); st.write(item["Explanation"])
+            with st.container(border=True):
+                st.markdown(f"**{item['Metric']}** — {item['Status']}")
+                st.write(item["Explanation"])
+        st.caption(health["data_quality"])
         st.caption(health["recommendation_note"])
-
+        st.caption("The indicator is a transparent planning metric, not a credit score, investment recommendation or regulated financial assessment.")
     with tabs[12]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
         if st.button("Save Settings",key="pf_settings"):
