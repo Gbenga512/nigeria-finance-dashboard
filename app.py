@@ -8,7 +8,7 @@ from services.news_service import fetch_news
 from services.ai_service import generate_ai_insight
 from services import personal_finance as personal_finance_service
 from pages import dashboard, markets, reconciliation, financial_statements, treasury, budget, risk, reports, intelligence, quant_lab, portfolio_risk, research_lab, robustness, data_workspace, garch_lab, liquidity_fx, research, integrated_risk, data_controls
-from ng_ui import inject_styles, brand, footer
+from ng_ui import inject_styles, brand, footer, NAV_GROUPS
 
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
@@ -51,7 +51,16 @@ if nav_target in WORKSPACES:
 elif st.session_state.get("ng_workspace_radio") not in WORKSPACES:
     st.session_state["ng_workspace_radio"] = WORKSPACES[0]
 
-page = st.sidebar.radio("Workspace", WORKSPACES, key="ng_workspace_radio", label_visibility="visible")
+st.sidebar.markdown("### Navigate")
+st.sidebar.caption("Choose a finance task or workspace.")
+_group_options = []
+for _group, _items in NAV_GROUPS.items():
+    st.sidebar.caption(_group.upper())
+    _group_options.extend([item for item in _items if item in WORKSPACES])
+_current = st.session_state.get("ng_workspace_radio", WORKSPACES[0])
+if _current not in _group_options:
+    _current = _group_options[0]
+page = st.sidebar.selectbox("Workspace", _group_options, index=_group_options.index(_current), key="ng_workspace_radio", label_visibility="collapsed")
 mobile_workspace_navigator(page)
 st.sidebar.markdown('<div class="ng-upgrade"><div class="ng-upgrade-title">✦ Built for finance teams</div><div class="ng-upgrade-copy">Markets, treasury, risk and accounting intelligence in one workspace.</div></div>', unsafe_allow_html=True)
 
