@@ -8,6 +8,7 @@ from services import personal_finance_controls as controls
 from services import personal_finance_intelligence as pfi
 from services import personal_finance_wealth as wealth
 from services import personal_net_worth_history as nw_history
+from services import personal_debt_payments as debt_payments
 from analytics import personal_allocation
 
 
@@ -211,7 +212,7 @@ def render() -> None:
             st.dataframe(goals[["name","target_amount","current_amount","progress_pct","target_date","linked_account","status"]],use_container_width=True,hide_index=True)
             for _,g in goals.iterrows(): st.progress(int(min(100,max(0,g["progress_pct"]))),text=f"{g['name']}: {g['progress_pct']:.1f}%")
 
-    with tabs[7]:
+    with tabs[8]:
         st.subheader("Debt Register")
         with st.form("pf_debt",clear_on_submit=True):
             name=st.text_input("Debt name"); principal=st.number_input(f"Original principal ({symbol})",min_value=0.0,step=10000.0); balance=st.number_input(f"Current balance ({symbol})",min_value=0.0,step=10000.0); rate=st.number_input("Annual interest rate (%)",min_value=0.0,step=0.5); minimum=st.number_input(f"Minimum payment ({symbol})",min_value=0.0,step=1000.0); due=st.number_input("Due day",min_value=1,max_value=31,value=28); asof=st.date_input("As-of date",today,key="pf_debt_date"); notes=st.text_input("Notes",key="pf_debt_notes")
@@ -221,9 +222,41 @@ def render() -> None:
         debts=wealth.debts(end_s)
         if debts.empty: st.info("No debts recorded.")
         else: st.dataframe(debts[["name","principal","current_balance","interest_rate","minimum_payment","due_day","status","as_of_date"]],use_container_width=True,hide_index=True)
-        st.caption("The debt register is a balance snapshot. Debt-payment transactions are tracked separately and are not automatically assumed to change this snapshot.")
+        st.divider()
+        st.subheader("Link Debt Payments")
+        st.caption("Link a recorded Debt Payment transaction to a specific debt and split it between principal and interest. The payment amount must reconcile exactly.")
+        debt_payments.ensure_schema()
+        tx_payments=personal_finance.transactions(end=end_s)
+        tx_payments=tx_payments[tx_payments["transaction_type"]=="Debt Payment"] if not tx_payments.empty else tx_payments
+        debt_options=wealth.debts(end_s)
+        if tx_payments.empty: st.info("Record a Debt Payment transaction first.")
+        elif debt_options.empty: st.info("Create a debt in the register before linking payments.")
+        else:
+            payment_ids=tx_payments["id"].astype(int).tolist()
+            labels={int(r["id"]):f"#{int(r['id'])} • {r['transaction_date']} • {r['description']} • {money(r['amount'],symbol)}" for _,r in tx_payments.iterrows()}
+            with st.form("pf_link_debt_payment"):
+                tx_id=st.selectbox("Debt payment transaction",payment_ids,format_func=lambda x:labels[x])
+                debt_map={f"{r['name']} (ID {int(r['id'])})":int(r["id"]) for _,r in debt_options.iterrows()}
+                debt_label=st.selectbox("Debt",list(debt_map))
+                selected_payment=float(tx_payments.loc[tx_payments["id"]==tx_id,"amount"].iloc[0])
+                p,i=st.columns(2)
+                principal_alloc=p.number_input(f"Principal allocation ({symbol})",min_value=0.0,max_value=selected_payment,value=selected_payment,step=100.0)
+                interest_alloc=i.number_input(f"Interest allocation ({symbol})",min_value=0.0,max_value=selected_payment,value=0.0,step=100.0)
+                st.caption(f"Payment total: {money(selected_payment,symbol)} • Principal + interest must equal this amount.")
+                if st.form_submit_button("Link Payment",type="primary"):
+                    try: debt_payments.link_payment(tx_id,debt_map[debt_label],principal_alloc,interest_alloc); st.success("Debt payment linked."); st.rerun()
+                    except ValueError as exc: st.error(str(exc))
+        summary=debt_payments.debt_summary(end_s)
+        if not summary.empty:
+            st.subheader("Debt Position After Linked Payments")
+            st.dataframe(summary[["name","current_balance","linked_principal","linked_interest","calculated_balance"]],use_container_width=True,hide_index=True)
+        register=debt_payments.payment_register()
+        if not register.empty:
+            st.subheader("Linked Payment History")
+            st.dataframe(register[["transaction_date","debt_name","payment_amount","principal_amount","interest_amount","description"]],use_container_width=True,hide_index=True)
+        st.caption("FACT/CALCULATION: calculated balance = recorded debt balance at its as-of date less linked principal payments dated after that snapshot. Interest is tracked separately and does not reduce principal.")
 
-    with tabs[8]:
+    with tabs[9]:
         st.subheader("Investment Register")
         with st.form("pf_inv",clear_on_submit=True):
             name=st.text_input("Investment name"); asset_class=st.selectbox("Asset class",["Equity","Fixed Income","Money Market","Fund","Real Estate","Other"]); cost=st.number_input(f"Cost basis ({symbol})",min_value=0.0,step=10000.0); value=st.number_input(f"Current value ({symbol})",min_value=0.0,step=10000.0); units=st.number_input("Units (optional)",min_value=0.0,step=1.0); asof=st.date_input("Valuation date",today,key="pf_inv_date"); notes=st.text_input("Notes",key="pf_inv_notes")
@@ -235,20 +268,20 @@ def render() -> None:
         else:
             inv=inv.copy(); inv["gain_loss"]=inv["current_value"]-inv["cost_basis"]; inv["return_pct"]=inv.apply(lambda r:r["gain_loss"]/r["cost_basis"]*100 if r["cost_basis"] else None,axis=1); st.dataframe(inv[["name","asset_class","cost_basis","current_value","gain_loss","return_pct","units","as_of_date"]],use_container_width=True,hide_index=True)
 
-    with tabs[9]:
+    with tabs[10]:
         st.subheader("Financial Ratios & KPIs"); ratios=personal_finance.financial_ratios(start_s,end_s); target={"Savings Rate":s["savings_target"],"Expense-to-Income Ratio":1-s["savings_target"],"Needs Ratio":s["needs_target"],"Wants Ratio":s["wants_target"],"Savings/Investment Ratio":s["savings_target"],"Debt Repayment Ratio":s["debt_ratio_target"],"Emergency Fund Coverage (months)":s["emergency_months_target"]}; coverage=wealth.emergency_coverage(start_s,end_s); ratios["Emergency Fund Coverage (months)"]=coverage["essential_months"]; ratios["Net Worth"]=nw["net_worth"]; rows=[]
         for k,v in ratios.items():
             tv=target.get(k); status="Informational" if tv is None or v is None else ("On Target" if (v>=tv if k in ["Savings Rate","Savings/Investment Ratio","Emergency Fund Coverage (months)"] else v<=tv) else ("Below Target" if k in ["Savings Rate","Savings/Investment Ratio","Emergency Fund Coverage (months)"] else "Above Target")); rows.append({"Metric":k,"Actual":v,"Target":tv,"Status":status})
         st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
         st.caption("Emergency coverage is calculated from liquid cash/savings divided by average monthly essential (Need-classified) expenses in the selected period.")
 
-    with tabs[10]:
+    with tabs[11]:
         st.subheader("Financial Health Intelligence"); health=pfi.financial_health(start_s,end_s); st.info(health["data_quality"])
         for item in health["findings"]:
             with st.container(border=True): st.markdown(f"**{item['Metric']}** — {item['Status']}"); st.write(item["Explanation"])
         st.caption(health["recommendation_note"])
 
-    with tabs[11]:
+    with tabs[12]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
         if st.button("Save Settings",key="pf_settings"):
             if abs((n+w+sv)-1)>1e-9: st.error("Needs, Wants and Savings/Investment targets must total 100%.")
