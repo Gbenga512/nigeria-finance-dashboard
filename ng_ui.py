@@ -12,6 +12,17 @@ WORKSPACES = [
     "📑  Budget Analysis", "📋  Financial Statement Analyzer", "📄  Executive Reports",
 ]
 
+NAV_GROUPS = {
+    "Overview": ["📊  Dashboard", "🧠  Intelligence Centre", "🤖  AI Insights", "📄  Executive Reports"],
+    "Business Finance": ["🏢  SME Finance Department", "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers", "🏦  SME Bank Statements", "↔️  Bank Reconciliation", "📑  Budget Analysis", "💧  Treasury Dashboard"],
+    "Personal Finance": ["👤  Personal Finance", "💳  Personal Accounts", "🔁  Recurring Finance"],
+    "Risk & Markets": ["📈  Markets", "🛡️  Risk Monitor", "📐  Portfolio Risk", "🎯  Integrated Risk Command Centre", "💱  Liquidity & FX Risk"],
+    "Quant & Research": ["🧪  Quant Lab", "🔬  Research & Backtesting", "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab", "🛡️  Risk Robustness Lab"],
+    "Data & Controls": ["📁  Finance Data Workspace", "🧾  Financial Data Controls", "📋  Financial Statement Analyzer"],
+    "Information": ["📰  News Terminal"],
+}
+
+
 
 def inject_styles() -> None:
     st.markdown(
@@ -37,7 +48,7 @@ def inject_styles() -> None:
         .ng-eyebrow{color:var(--ng-blue);font-size:.67rem;font-weight:850;letter-spacing:.16em;text-transform:uppercase;margin-bottom:7px}.ng-hero h1{font-size:2.35rem!important;letter-spacing:-.035em;margin-bottom:7px!important}.ng-subtitle{color:#95a7bb;font-size:.94rem;margin:0;max-width:800px;line-height:1.55}
         .ng-command{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 15px;color:#8293a8;font-size:.75rem}
         .ng-command-kicker{color:#c8d3df;font-weight:700}.ng-live-dot{display:inline-flex;align-items:center;gap:6px}.ng-live-dot:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ng-teal);box-shadow:0 0 12px rgba(53,214,176,.65)}
-        .ng-action{border:1px solid var(--ng-border);background:rgba(255,255,255,.025);border-radius:12px;padding:11px 13px;height:100%}.ng-action-title{color:#e7edf5;font-size:.82rem;font-weight:800}.ng-action-copy{color:#74879e;font-size:.69rem;line-height:1.4;margin-top:3px}
+        .ng-nav-help{color:#71859d;font-size:.68rem;line-height:1.45;margin:0 0 8px}.ng-action{border:1px solid var(--ng-border);background:rgba(255,255,255,.025);border-radius:12px;padding:11px 13px;height:100%}.ng-action-title{color:#e7edf5;font-size:.82rem;font-weight:800}.ng-action-copy{color:#74879e;font-size:.69rem;line-height:1.4;margin-top:3px}
         .ng-alert{border-left:3px solid var(--ng-amber);padding:12px 14px;border-radius:10px;background:rgba(242,195,91,.055);margin-bottom:9px}.ng-alert-title{color:#eef2f7;font-weight:750;font-size:.82rem}.ng-alert-copy{color:#8293a8;font-size:.7rem;margin-top:3px}
         .ng-ticker{display:flex;gap:8px;overflow:hidden;margin:0 0 17px}.ng-ticker-item{min-width:145px;border:1px solid var(--ng-border);background:rgba(12,25,41,.78);border-radius:11px;padding:9px 11px}.ng-ticker-name{font-size:.67rem;color:#8497ad}.ng-ticker-price{font-size:.9rem;color:#f5f7fb;font-weight:800}.ng-ticker-change{font-size:.68rem;font-weight:800}
         .ng-kpi{min-height:105px}.ng-kpi .ng-card-value{font-size:1.42rem}.ng-kpi-meta{font-size:.69rem;color:#72869e}
@@ -62,12 +73,13 @@ def brand() -> None:
 
 
 def workspace_navigator(current: str) -> None:
-    st.markdown("### Workspace navigation")
-    choices = [x for x in WORKSPACES if x != current]
-    target = st.selectbox("Open module", choices, key="ng_mobile_nav")
-    if st.button("Open selected module", key="ng_open_module", use_container_width=True):
-        st.session_state["ng_nav_target"] = target
-        st.rerun()
+    with st.expander("Switch workspace", expanded=False):
+        st.markdown('<div class="ng-nav-help">Jump directly to another area without losing your place.</div>', unsafe_allow_html=True)
+        choices = [x for x in WORKSPACES if x != current]
+        target = st.selectbox("Open module", choices, key="ng_mobile_nav", label_visibility="collapsed")
+        if st.button("Open selected module", key="ng_open_module", use_container_width=True):
+            st.session_state["ng_nav_target"] = target
+            st.rerun()
 
 
 def hero(title: str, subtitle: str, status: str = "Live market feed") -> None:
