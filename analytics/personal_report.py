@@ -70,10 +70,17 @@ def report_text(pack: dict) -> str:
     lines += ["", "DATA QUALITY"]
     for _, row in pack["data_quality"]["checks"].iterrows():
         lines.append(f"- {row['Check']}: {row['Status']} ({int(row['Count'])}) — {row['Detail']}")
+    lines += ["", "SCENARIO SUMMARY"]
+    scenarios = pack.get("scenarios")
+    if scenarios is not None and not scenarios.empty:
+        for name, grp in scenarios.groupby("Scenario"):
+            last = grp.iloc[-1]
+            closing = float(last["Projected Closing Cash"])
+            lines.append(f"- {name}: projected closing cash {closing:,.2f} after {len(grp)} months.")
     lines += [
         "",
         "DISCLOSURE",
         "This report is a financial-management summary derived from recorded user data.",
-        "Planning indicators are calculations, not regulated financial advice or credit assessments.",
+        "Planning indicators and scenario outputs are calculations/estimates, not regulated financial advice or credit assessments.",
     ]
     return "\n".join(lines)
