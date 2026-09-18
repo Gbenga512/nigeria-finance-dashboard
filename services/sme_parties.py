@@ -84,9 +84,10 @@ def ar_ap_summary(business_id:int)->dict[str,float]:
     ar=invoice_register(business_id,"Customer"); ap=invoice_register(business_id,"Supplier")
     return {"accounts_receivable":float(ar["outstanding"].sum()) if not ar.empty else 0.0,"accounts_payable":float(ap["outstanding"].sum()) if not ap.empty else 0.0,"overdue_receivables":float(ar.loc[ar["days_overdue"]>0,"outstanding"].sum()) if not ar.empty else 0.0,"overdue_payables":float(ap.loc[ap["days_overdue"]>0,"outstanding"].sum()) if not ap.empty else 0.0}
 
-def post_invoice_to_ledger(business_id:int,invoice_id:int)->int:
+def post_invoice_to_ledger(business_id:int,invoice_id:int,supplier_tax_treatment:str='Recoverable')->int:
     """Post an approved invoice once to the general ledger using standard AR/AP accounts."""
     ensure_schema()
+    if supplier_tax_treatment not in {'Recoverable','Expense'}: raise ValueError('Supplier tax treatment must be Recoverable or Expense.')
     from services.sme_accounting import ensure_standard_accounts, post_journal_entry
     ensure_standard_accounts(business_id)
     with connect() as conn:
@@ -102,5 +103,7 @@ def post_invoice_to_ledger(business_id:int,invoice_id:int)->int:
         if tax: lines.append({"account_id":accounts["Tax Payable"],"credit":tax})
     else:
         lines=[{"account_id":accounts["Operating Expenses"],"debit":subtotal},{"account_id":accounts["Accounts Payable"],"credit":total}]
-        if tax: lines.append({"account_id":accounts["Tax Expense"],"debit":tax})
+        if tax:
+            tax_account = accounts["VAT Recoverable"] if supplier_tax_treatment == "Recoverable" else accounts["Tax Expense"]
+            lines.append({"account_id":tax_account,"debit":tax})
     return post_journal_entry(business_id,inv["invoice_date"],f"Invoice {inv['invoice_number']} — {inv['party_name']}",lines,reference=ref,source="AR/AP invoice")
