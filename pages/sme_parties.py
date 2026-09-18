@@ -4,13 +4,15 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from ng_ui import hero
-from services.sme_parties import ar_ap_summary, create_invoice, create_party, invoice_register, list_parties, record_payment, post_invoice_to_ledger
+from services.sme_parties import ar_ap_summary, create_invoice, create_party, invoice_register, list_parties, post_invoice_to_ledger
+from services.ifrs_payment_controls import ensure_payment_schema, record_payment_controlled, post_payment_to_ledger, payment_register
 from services.sme_store import get_or_create_user, list_businesses
 
 def _money(value: float) -> str: return f"₦{float(value):,.0f}"
 def _party_form(business_id: int, party_type: str) -> None:
     with st.form(f"new_{party_type.lower()}_form", clear_on_submit=True):
-        c1,c2=st.columns(2); name=c1.text_input(f"{party_type} name *"); contact=c2.text_input("Contact person")
+        ensure_payment_schema()
+    c1,c2=st.columns(2); name=c1.text_input(f"{party_type} name *"); contact=c2.text_input("Contact person")
         c3,c4=st.columns(2); email=c3.text_input("Email"); phone=c4.text_input("Phone")
         c5,c6=st.columns(2); tax_id=c5.text_input("Tax ID / TIN"); terms=c6.number_input("Payment terms (days)",min_value=0,value=30,step=1)
         credit=st.number_input("Credit limit (₦)",min_value=0.0,step=10000.0); address=st.text_area("Address",height=80)
@@ -38,9 +40,15 @@ def _register(business_id:int,party_type:str)->None:
     options={f"{r['invoice_number']} · {r['party_name']} · {_money(r['outstanding'])}":int(r['id']) for _,r in open_df.iterrows()}; selected=st.selectbox("Invoice action",list(options),key=f"invoice_action_{party_type}"); invoice_id=options[selected]
     c1,c2=st.columns(2)
     with c1:
+        from services.sme_accounting import account_catalog
+        cash_catalog=account_catalog(business_id)
+        cash_rows=cash_catalog[cash_catalog["name"].isin(["Main Bank","Cash on Hand"])]
+        cash_map={r["name"]:int(r["id"]) for _,r in cash_rows.iterrows()}
+        cash_account=st.selectbox("Cash / bank account",list(cash_map),key=f"cash_account_{party_type}")
+        cash_account_id=cash_map[cash_account]
         amount=st.number_input("Payment amount (₦)",min_value=0.01,max_value=max(0.01,float(open_df.loc[open_df.id==invoice_id,'outstanding'].iloc[0])),value=min(float(open_df.loc[open_df.id==invoice_id,'outstanding'].iloc[0]),1000.0),step=100.0,key=f"payment_amount_{party_type}")
         if st.button("Record operational payment",key=f"record_payment_{party_type}",use_container_width=True):
-            try: record_payment(business_id,invoice_id,amount); st.success("Payment recorded in the AR/AP subledger."); st.rerun()
+            try: record_payment_controlled(business_id,invoice_id,amount,date.today().isoformat(),cash_account_id); st.success("Payment recorded. It is not yet posted to the general ledger."); st.rerun()
             except ValueError as exc: st.error(str(exc))
     with c2:
         st.caption("Accounting posting creates the controlled double-entry entry and should be used after the invoice has been reviewed.")
@@ -58,5 +66,18 @@ def render()->None:
     with tabs[1]: _party_form(business_id,"Supplier"); st.dataframe(pd.DataFrame(suppliers)[["name","contact_name","email","phone","payment_terms_days","credit_limit"]],use_container_width=True,hide_index=True) if suppliers else None
     with tabs[2]: _invoice_form(business_id,"Customer",customers); _register(business_id,"Customer")
     with tabs[3]: _invoice_form(business_id,"Supplier",suppliers); _register(business_id,"Supplier")
-    st.info("AR/AP is an operational subledger. Invoice posting is explicit and uses the existing double-entry engine; no invoice is silently posted to the general ledger.")
+    st.subheader("Controlled Payment Register")
+    payments=payment_register(business_id)
+    if payments.empty:
+        st.info("No controlled AR/AP payments recorded yet.")
+    else:
+        st.dataframe(payments,use_container_width=True,hide_index=True)
+        unposted=payments[(payments["status"]=="Recorded") & (payments["journal_entry_id"].isna())]
+        if not unposted.empty:
+            pmap={f"#{int(r['id'])} · {r['invoice_number']} · {r['party_name']} · {_money(r['amount'])}":int(r["id"]) for _,r in unposted.iterrows()}
+            selected=st.selectbox("Payment to post to GL",list(pmap),key="sme_payment_to_post")
+            if st.button("Post payment to accounting",key="sme_post_payment",type="primary"):
+                try: post_payment_to_ledger(business_id,pmap[selected]); st.success("Payment posted to the general ledger."); st.rerun()
+                except ValueError as exc: st.error(str(exc))
+    st.info("AR/AP is an operational subledger. Invoice and payment posting are explicit and use the double-entry engine.")
     st.caption("NG Finance Pro is a financial-management and analytics tool and does not provide tax advice or regulated financial services.")
