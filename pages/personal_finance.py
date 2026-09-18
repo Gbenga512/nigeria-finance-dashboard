@@ -374,7 +374,7 @@ def render() -> None:
                 st.line_chart(forecast.set_index("Month")[["Opening Cash","Closing Cash"]])
             st.caption("ESTIMATE: forecast combines recorded liquid cash, historical same-month patterns and active recurring rules. It is a planning scenario, not a guaranteed cash position.")
 
-    with tabs[15-1]:
+    with tabs[15]:
         st.subheader("Scenario Planning")
         horizon=st.slider("Scenario horizon (months)",3,12,6,key="pf_scenario_months")
         scenario_name=st.selectbox("Scenario",["Base Case","Conservative","Custom"],key="pf_scenario_name")
@@ -396,7 +396,7 @@ def render() -> None:
                 st.line_chart(result.set_index("Month")[["Projected Closing Cash"]])
             st.caption("ESTIMATE / SCENARIO: explicit planning assumptions applied to the forward cash-flow model; not a prediction or guaranteed outcome.")
 
-    with tabs[15]:
+    with tabs[16]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
         if st.button("Save Settings",key="pf_settings"):
             if abs((n+w+sv)-1)>1e-9: st.error("Needs, Wants and Savings/Investment targets must total 100%.")
