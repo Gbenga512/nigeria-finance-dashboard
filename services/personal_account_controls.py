@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 from services import personal_finance as pf
+from services import personal_finance_wealth as wealth
 
 
 ACCOUNT_TYPES = ("Cash", "Savings", "Investment", "Other Asset")
@@ -44,6 +45,7 @@ def update_account(account_id: int, name: str, account_type: str, opening_balanc
 
 def account_usage(account_id: int) -> dict:
     pf.ensure_schema()
+    wealth.ensure_schema()
     with pf.connect() as conn:
         transactions = int(
             conn.execute(
