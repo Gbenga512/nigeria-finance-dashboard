@@ -12,6 +12,7 @@ from services import personal_debt_payments as debt_payments
 from services import personal_investment_history as investment_history
 from analytics import personal_allocation
 from analytics import personal_health
+from analytics import personal_data_quality
 
 
 def money(v: float, symbol: str = "₦") -> str:
@@ -32,7 +33,7 @@ def render() -> None:
     for col,(label,value) in zip(cols,[("Total Income",m["income"]),("Total Expenses",m["expenses"]),("Net Savings",m["net_savings"]),("Savings / Investment",m["savings"]),("Net Worth",nw["net_worth"])]): col.metric(label,money(value,symbol))
     if m["savings_rate"] is not None: st.caption(f"Net savings rate: {m['savings_rate']:.1f}% • {m['transaction_count']} transactions")
 
-    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Settings"])
+    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Data Quality","Settings"])
     with tabs[0]:
         st.subheader("Needs / Wants / Savings-Investment Allocation")
         allocation = personal_allocation.allocation_report(start_s, end_s)
@@ -328,6 +329,15 @@ def render() -> None:
         st.caption(health["recommendation_note"])
         st.caption("The indicator is a transparent planning metric, not a credit score, investment recommendation or regulated financial assessment.")
     with tabs[12]:
+        st.subheader("Data Quality & Controls")
+        dq=personal_data_quality.data_quality_report(start_s,end_s)
+        if dq["status"]=="PASS": st.success("PASS — no data-quality exceptions detected in the selected period.")
+        else: st.warning("REVIEW — one or more data-quality exceptions require attention.")
+        st.dataframe(dq["checks"],use_container_width=True,hide_index=True)
+        if not dq["issues"].empty: st.subheader("Exceptions Requiring Review"); st.dataframe(dq["issues"],use_container_width=True,hide_index=True)
+        st.caption(dq["status_note"])
+
+    with tabs[13]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
         if st.button("Save Settings",key="pf_settings"):
             if abs((n+w+sv)-1)>1e-9: st.error("Needs, Wants and Savings/Investment targets must total 100%.")
