@@ -71,8 +71,8 @@ def _business_form(user_id: int, form_key: str = "create_sme_business") -> None:
 
 
 def _render_module_cards() -> None:
-    st.markdown("### Finance operations")
-    st.caption("Jump directly to the workflow you need. Your existing market and quantitative workspaces remain available from the main menu.")
+    st.markdown("### Run your business finances")
+    st.caption("Start with the task you need. Detailed accounting and quantitative tools stay available when you need them.")
     for start in range(0, len(SME_MODULES), 2):
         cols = st.columns(2)
         for col, (icon, title, description, target) in zip(cols, SME_MODULES[start:start + 2]):
@@ -229,7 +229,7 @@ def render() -> None:
         return
 
     labels = [f"{b['name']} · {b['currency']}" for b in businesses]
-    selected_label = st.selectbox("Active business", labels, key="sme_active_business")
+    selected_label = st.selectbox("Business", labels, key="sme_active_business", help="Choose the business whose financial information you want to view.")
     business = businesses[labels.index(selected_label)]
     business_id = int(business["id"])
 
@@ -244,6 +244,7 @@ def render() -> None:
     max_date = tx["transaction_date"].max().date() if not tx.empty and tx["transaction_date"].notna().any() else date.today()
     today = date.today()
     st.markdown("### Finance overview")
+    st.caption("A simple view of what is happening in your business. Open detailed modules only when you need them.")
     period = st.selectbox("Reporting period", ["This month", "Last month", "Quarter", "Year", "Custom"], key="sme_period")
     if period == "This month": start, end = today.replace(day=1), today
     elif period == "Last month": end = today.replace(day=1) - timedelta(days=1); start = end.replace(day=1)
@@ -262,7 +263,7 @@ def render() -> None:
         cols = st.columns(2)
         for col, (label, value) in zip(cols, row):
             col.metric(label, value if label == "Data Quality" else _money(value))
-    st.caption(f"{start:%d %b %Y} → {end:%d %b %Y} • {metrics['count']:,} transaction(s). Gross profit, AR/AP, inventory and a true closing cash balance require their respective subledgers.")
+    st.caption(f"{start:%d %b %Y} → {end:%d %b %Y} • {metrics['count']:,} transaction(s). Figures are based on recorded operational data.")
 
     _render_module_cards()
 
@@ -291,6 +292,10 @@ def render() -> None:
                 st.caption(factor["Explanation"])
 
     accounts = list_accounts(business_id)
-    _render_transaction_form(business_id, today, accounts)
-    _render_transaction_lifecycle(business_id, tx, accounts)
+    with st.expander("➕ Add a transaction", expanded=False):
+        st.caption("Quick manual entry. Imported bank transactions are reviewed separately before accounting.")
+        _render_transaction_form(business_id, today, accounts)
+
+    with st.expander("📋 Review transaction history", expanded=False):
+        _render_transaction_lifecycle(business_id, tx, accounts)
     st.caption("NG Finance Pro is a financial-management and analytics tool. It does not provide tax advice, investment advice, or regulated financial services.")
