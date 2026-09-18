@@ -358,6 +358,10 @@ def render() -> None:
         st.dataframe(pack["health"]["components"],use_container_width=True,hide_index=True)
         st.subheader("Data Quality")
         st.dataframe(pack["data_quality"]["checks"],use_container_width=True,hide_index=True)
+        st.subheader("Scenario Summary")
+        scenarios=pack.get("scenarios")
+        if scenarios is not None and not scenarios.empty:
+            st.dataframe(scenarios[["Scenario","Month","Adjusted Income","Adjusted Outflows","Projected Closing Cash","Status"]],use_container_width=True,hide_index=True)
         text_report=personal_report.report_text(pack)
         st.download_button("Download Personal Finance Report (TXT)",text_report,"personal_finance_report.txt","text/plain")
         st.download_button("Download Transactions (CSV)",personal_finance.transactions(start_s,end_s).to_csv(index=False),"personal_finance_transactions.csv","text/csv")
