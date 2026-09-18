@@ -7,6 +7,7 @@ from services import personal_finance
 from services import personal_finance_controls as controls
 from services import personal_finance_intelligence as pfi
 from services import personal_finance_wealth as wealth
+from analytics import personal_allocation
 
 
 def money(v: float, symbol: str = "₦") -> str:
@@ -29,7 +30,46 @@ def render() -> None:
 
     tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Settings"])
     with tabs[0]:
-        st.subheader("50 / 30 / 20 Allocation"); df=personal_finance.transactions(start_s,end_s); income=m["income"]
+        st.subheader("Needs / Wants / Savings-Investment Allocation")
+        allocation = personal_allocation.allocation_report(start_s, end_s)
+        if allocation.empty:
+            st.info("No allocation data for the selected period.")
+        else:
+            a, b, c = st.columns(3)
+            for col, (_, row) in zip((a, b, c), allocation.iterrows()):
+                pct = row["Actual % of Income"]
+                target_pct = row["Target %"]
+                col.metric(
+                    row["Bucket"],
+                    f"{pct:.1f}%" if pd.notna(pct) else "—",
+                    f"Target {target_pct:.0f}%",
+                )
+            st.dataframe(
+                allocation[
+                    ["Bucket", "Actual", "Actual % of Income", "Target %", "Target Amount", "Budgeted", "Budget Variance", "Target Variance"]
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+            chart = allocation[["Bucket", "Actual % of Income", "Target %"]].melt(
+                id_vars="Bucket", var_name="Metric", value_name="Percent"
+            )
+            st.plotly_chart(
+                px.bar(
+                    chart,
+                    x="Bucket",
+                    y="Percent",
+                    color="Metric",
+                    barmode="group",
+                    title="Actual vs Target Allocation",
+                ),
+                use_container_width=True,
+            )
+            st.caption(
+                "FACT/CALCULATION: Needs and Wants include recorded expenses plus debt payments classified as Needs; "
+                "Savings/Investment includes recorded savings and investment allocations. Budgeted values aggregate category budgets."
+            )
+        df=personal_finance.transactions(start_s,end_s); income=m["income"]
         need=float(df.loc[(df.transaction_type=="Expense")&(df.classification=="Need"),"amount"].sum()) if not df.empty else 0.0; want=float(df.loc[(df.transaction_type=="Expense")&(df.classification=="Want"),"amount"].sum()) if not df.empty else 0.0
         a,b,c=st.columns(3); a.metric("Needs",f"{need/income*100:.1f}%" if income else "—",f"Target {s['needs_target']*100:.0f}%"); b.metric("Wants",f"{want/income*100:.1f}%" if income else "—",f"Target {s['wants_target']*100:.0f}%"); c.metric("Savings / Investment",f"{m['savings']/income*100:.1f}%" if income else "—",f"Target {s['savings_target']*100:.0f}%")
         monthly=personal_finance.monthly_statement(int(year)); chart=monthly.melt(id_vars="Month",value_vars=["Income","Expenses"],var_name="Metric",value_name="Amount"); st.plotly_chart(px.bar(chart,x="Month",y="Amount",color="Metric",barmode="group",title="Monthly Income vs Expenses"),use_container_width=True)
