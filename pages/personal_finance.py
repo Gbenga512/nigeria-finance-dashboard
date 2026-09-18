@@ -13,6 +13,7 @@ from services import personal_investment_history as investment_history
 from analytics import personal_allocation
 from analytics import personal_health
 from analytics import personal_data_quality
+from analytics import personal_report
 
 
 def money(v: float, symbol: str = "₦") -> str:
@@ -33,7 +34,7 @@ def render() -> None:
     for col,(label,value) in zip(cols,[("Total Income",m["income"]),("Total Expenses",m["expenses"]),("Net Savings",m["net_savings"]),("Savings / Investment",m["savings"]),("Net Worth",nw["net_worth"])]): col.metric(label,money(value,symbol))
     if m["savings_rate"] is not None: st.caption(f"Net savings rate: {m['savings_rate']:.1f}% • {m['transaction_count']} transactions")
 
-    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Data Quality","Settings"])
+    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Data Quality","Reports","Settings"])
     with tabs[0]:
         st.subheader("Needs / Wants / Savings-Investment Allocation")
         allocation = personal_allocation.allocation_report(start_s, end_s)
@@ -338,6 +339,29 @@ def render() -> None:
         st.caption(dq["status_note"])
 
     with tabs[13]:
+        st.subheader("Personal Finance Reports")
+        st.caption("Generate a period-based management report from recorded financial data.")
+        pack=personal_report.report_pack(start_s,end_s)
+        m=pack["metrics"]; nw=pack["net_worth"]
+        a,b,c,d=st.columns(4)
+        a.metric("Income",money(m["income"],symbol))
+        b.metric("Expenses",money(m["expenses"],symbol))
+        c.metric("Net Worth",money(nw["net_worth"],symbol))
+        d.metric("Health",f"{pack['health']['score']:.1f}/100")
+        st.subheader("Executive Summary")
+        for item in personal_report.executive_summary(pack): st.write("• "+item)
+        st.subheader("Allocation")
+        st.dataframe(pack["allocation"],use_container_width=True,hide_index=True)
+        st.subheader("Financial Health")
+        st.dataframe(pack["health"]["components"],use_container_width=True,hide_index=True)
+        st.subheader("Data Quality")
+        st.dataframe(pack["data_quality"]["checks"],use_container_width=True,hide_index=True)
+        text_report=personal_report.report_text(pack)
+        st.download_button("Download Personal Finance Report (TXT)",text_report,"personal_finance_report.txt","text/plain")
+        st.download_button("Download Transactions (CSV)",personal_finance.transactions(start_s,end_s).to_csv(index=False),"personal_finance_transactions.csv","text/csv")
+        st.caption(pack["status"])
+
+    with tabs[14]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
         if st.button("Save Settings",key="pf_settings"):
             if abs((n+w+sv)-1)>1e-9: st.error("Needs, Wants and Savings/Investment targets must total 100%.")
