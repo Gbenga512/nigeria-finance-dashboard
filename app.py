@@ -23,7 +23,7 @@ def _pf_dashboard_metrics_compat(start: str, end: str) -> dict:
 personal_finance_service.dashboard_metrics = _pf_dashboard_metrics_compat
 
 WORKSPACES = [
-    "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "💳  Personal Accounts",
+    "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "💳  Personal Accounts", "🔁  Recurring Finance",
     "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers",
     "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
     "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab",
@@ -85,6 +85,9 @@ elif page == "👤  Personal Finance":
 elif page == "💳  Personal Accounts":
     from pages import personal_accounts
     personal_accounts.render()
+elif page == "🔁  Recurring Finance":
+    from pages import personal_recurring
+    personal_recurring.render()
 elif page == "🏦  SME Bank Statements":
     from pages import sme_bank_import
     sme_bank_import.render()
