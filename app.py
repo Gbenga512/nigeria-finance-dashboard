@@ -13,8 +13,6 @@ from ng_ui import inject_styles, brand, footer
 st.set_page_config(page_title="NG Finance Pro", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 inject_styles(); brand(); st.sidebar.caption("FINANCIAL INTELLIGENCE WORKSPACE")
 
-# Compatibility layer for the Personal Finance UI. The engine's canonical
-# field is net_cash_flow; the UI's Net Savings KPI is income less expenses.
 _pf_dashboard_metrics = personal_finance_service.dashboard_metrics
 
 def _pf_dashboard_metrics_compat(start: str, end: str) -> dict:
@@ -25,8 +23,8 @@ def _pf_dashboard_metrics_compat(start: str, end: str) -> dict:
 personal_finance_service.dashboard_metrics = _pf_dashboard_metrics_compat
 
 WORKSPACES = [
-    "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "🏦  SME Bank Statements",
-    "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers",
+    "📊  Dashboard", "🏢  SME Finance Department", "👤  Personal Finance", "💳  Personal Accounts",
+    "🏦  SME Bank Statements", "📚  SME Accounting & Statements", "📘  SME Management Accounts", "👥  Customers & Suppliers",
     "🧠  Intelligence Centre", "🎯  Integrated Risk Command Centre",
     "📁  Finance Data Workspace", "🧾  Financial Data Controls", "🧪  Quant Lab",
     "🔬  Research & Backtesting", "🌍  Emerging Markets Research", "📉  GARCH Volatility Lab",
@@ -36,19 +34,16 @@ WORKSPACES = [
     "📄  Executive Reports",
 ]
 
-
 def _request_mobile_navigation(widget_key: str) -> None:
     target = st.session_state.get(widget_key)
     if target in WORKSPACES:
         st.session_state["ng_nav_target"] = target
-
 
 def mobile_workspace_navigator(current: str) -> None:
     st.markdown("### Workspace navigation")
     choices = [item for item in WORKSPACES if item != current]
     widget_key = f"ng_mobile_nav_{current}"
     st.selectbox("Open module", choices, key=widget_key, on_change=_request_mobile_navigation, args=(widget_key,))
-
 
 nav_target = st.session_state.pop("ng_nav_target", None)
 if nav_target in WORKSPACES:
@@ -87,6 +82,9 @@ elif page == "🏢  SME Finance Department":
 elif page == "👤  Personal Finance":
     from pages import personal_finance
     personal_finance.render()
+elif page == "💳  Personal Accounts":
+    from pages import personal_accounts
+    personal_accounts.render()
 elif page == "🏦  SME Bank Statements":
     from pages import sme_bank_import
     sme_bank_import.render()
