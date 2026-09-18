@@ -7,6 +7,7 @@ from services import personal_finance
 from services import personal_finance_controls as controls
 from services import personal_finance_intelligence as pfi
 from services import personal_finance_wealth as wealth
+from services import personal_net_worth_history as nw_history
 from analytics import personal_allocation
 
 
@@ -28,7 +29,7 @@ def render() -> None:
     for col,(label,value) in zip(cols,[("Total Income",m["income"]),("Total Expenses",m["expenses"]),("Net Savings",m["net_savings"]),("Savings / Investment",m["savings"]),("Net Worth",nw["net_worth"])]): col.metric(label,money(value,symbol))
     if m["savings_rate"] is not None: st.caption(f"Net savings rate: {m['savings_rate']:.1f}% • {m['transaction_count']} transactions")
 
-    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Settings"])
+    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Settings"])
     with tabs[0]:
         st.subheader("Needs / Wants / Savings-Investment Allocation")
         allocation = personal_allocation.allocation_report(start_s, end_s)
@@ -164,6 +165,39 @@ def render() -> None:
         if not items.empty: st.dataframe(items,use_container_width=True,hide_index=True)
 
     with tabs[6]:
+        st.subheader("Historical Net Worth")
+        st.caption("Record period-end snapshots to build a reliable personal wealth history. Historical values are never invented.")
+        nw_history.ensure_snapshot_schema()
+        if st.button("Record Current Net Worth Snapshot", key="pf_record_nw_snapshot", type="primary"):
+            try:
+                nw_history.record_snapshot(end_s, "Recorded from Personal Finance workspace")
+                st.success(f"Net worth snapshot recorded for {end_s}.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+        snapshots = nw_history.snapshots()
+        if snapshots.empty:
+            st.info("No historical snapshots yet. Record a snapshot at each month-end or valuation date.")
+        else:
+            latest = snapshots.iloc[-1]
+            first = snapshots.iloc[0]
+            x, y, z = st.columns(3)
+            x.metric("Snapshots", int(len(snapshots)))
+            y.metric("Latest Net Worth", money(latest["net_worth"], symbol))
+            z.metric("Change Since First", money(float(latest["net_worth"]) - float(first["net_worth"]), symbol))
+            chart = snapshots[["snapshot_date", "assets", "liabilities", "net_worth"]].copy()
+            chart["snapshot_date"] = pd.to_datetime(chart["snapshot_date"])
+            chart = chart.melt("snapshot_date", var_name="Metric", value_name="Amount")
+            st.plotly_chart(px.line(chart, x="snapshot_date", y="Amount", color="Metric", title="Net Worth Trend"), use_container_width=True)
+            st.dataframe(
+                snapshots[["snapshot_date", "assets", "liabilities", "net_worth", "liquid_cash", "investments", "debt_register", "notes"]],
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.download_button("Export Net Worth History CSV", snapshots.to_csv(index=False), "personal_net_worth_history.csv", "text/csv")
+        st.caption("FACT/CALCULATION: each point is a recorded snapshot derived from the personal accounts, investment register, debt register and recorded assets/liabilities available as of that date.")
+
+    with tabs[7]:
         st.subheader("Savings Goals")
         accts=personal_finance.accounts(); opts=dict(zip(accts.name,accts.id)); names=list(opts)
         with st.form("pf_goal",clear_on_submit=True):
