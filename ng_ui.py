@@ -52,6 +52,23 @@ def inject_styles() -> None:
         .ng-alert{border-left:3px solid var(--ng-amber);padding:12px 14px;border-radius:10px;background:rgba(242,195,91,.055);margin-bottom:9px}.ng-alert-title{color:#eef2f7;font-weight:750;font-size:.82rem}.ng-alert-copy{color:#8293a8;font-size:.7rem;margin-top:3px}
         .ng-ticker{display:flex;gap:8px;overflow:hidden;margin:0 0 17px}.ng-ticker-item{min-width:145px;border:1px solid var(--ng-border);background:rgba(12,25,41,.78);border-radius:11px;padding:9px 11px}.ng-ticker-name{font-size:.67rem;color:#8497ad}.ng-ticker-price{font-size:.9rem;color:#f5f7fb;font-weight:800}.ng-ticker-change{font-size:.68rem;font-weight:800}
         .ng-kpi{min-height:105px}.ng-kpi .ng-card-value{font-size:1.42rem}.ng-kpi-meta{font-size:.69rem;color:#72869e}
+        /* User-friendly interaction layer: make every Streamlit control feel consistent and obvious. */
+        [data-testid="stMetric"]{background:rgba(12,25,41,.72);border:1px solid var(--ng-border);border-radius:14px;padding:13px 14px}
+        [data-testid="stMetricLabel"]{color:#8293a8!important;font-size:.72rem!important}
+        [data-testid="stMetricValue"]{color:#f5f7fb!important;font-weight:850!important}
+        [data-testid="stMetricDelta"]{font-size:.7rem!important}
+        .stButton>button,.stDownloadButton>button{border-radius:10px;border:1px solid rgba(90,169,255,.20);font-weight:750;transition:all .15s ease}
+        .stButton>button:hover,.stDownloadButton>button:hover{border-color:rgba(90,169,255,.48);transform:translateY(-1px)}
+        .stButton>button[kind="primary"]{box-shadow:0 7px 20px rgba(90,169,255,.10)}
+        div[data-baseweb="input"]>div,div[data-baseweb="select"]>div,div[data-baseweb="textarea"]>div{background:rgba(7,17,31,.72);border-radius:10px;border-color:var(--ng-border)}
+        div[data-baseweb="input"] input,div[data-baseweb="textarea"] textarea{color:var(--ng-text)}
+        [data-testid="stExpander"]{border:1px solid var(--ng-border);border-radius:13px;background:rgba(10,21,35,.45)}
+        [data-testid="stExpander"] summary{font-weight:750}
+        [data-testid="stTabs"] button{font-weight:700;color:#8193a8}
+        [data-testid="stTabs"] button[aria-selected="true"]{color:#f5f7fb}
+        [data-testid="stDataFrame"]{border:1px solid var(--ng-border);border-radius:12px}
+        .ng-help{padding:10px 12px;border-radius:10px;background:rgba(90,169,255,.055);border:1px solid rgba(90,169,255,.12);color:#8fa1b6;font-size:.73rem;line-height:1.5}
+        .ng-chip{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--ng-border);color:#9aabbd;font-size:.66rem;font-weight:750}
         @media (max-width: 640px){
           .block-container{padding:1rem .7rem 2rem!important;max-width:100%!important}
           .ng-hero{padding:21px 17px;border-radius:16px}.ng-hero h1{font-size:1.9rem!important;line-height:1.08!important}.ng-subtitle{font-size:.86rem}
