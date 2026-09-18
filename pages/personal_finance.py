@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from services import personal_finance
+from services import personal_finance_controls as controls
 from services import personal_finance_intelligence as pfi
 from services import personal_finance_wealth as wealth
 
@@ -13,7 +14,7 @@ def money(v: float, symbol: str = "₦") -> str:
 
 
 def render() -> None:
-    personal_finance.ensure_schema(); wealth.ensure_schema(); s=personal_finance.settings(); symbol=s["symbol"]; today=date.today()
+    personal_finance.ensure_schema(); controls.ensure_schema(); wealth.ensure_schema(); s=personal_finance.settings(); symbol=s["symbol"]; today=date.today()
     st.title("👤 Personal Finance")
     st.caption("Professional personal finance workspace — cash management, budgeting, statements, wealth tracking and explainable financial health.")
     c1,c2,c3=st.columns(3)
@@ -43,11 +44,46 @@ def render() -> None:
         with st.form("pf_tx",clear_on_submit=True):
             d,desc=st.columns(2); tx_date=d.date_input("Date",today); description=desc.text_input("Description"); a,c,acc=st.columns(3); amount=a.number_input(f"Amount ({symbol})",min_value=0.01,step=100.0); category=c.selectbox("Category",cat_options); account=acc.selectbox("Account",list(opts)); payment=st.text_input("Payment Method"); ref=st.text_input("Reference"); notes=st.text_area("Notes")
             if st.form_submit_button("Save Transaction",type="primary"):
-                try: personal_finance.add_transaction(tx_date.isoformat(),description,amount,typ,category,int(opts[account]),payment,ref,notes); st.success("Transaction saved."); st.rerun()
+                try:
+                    tx_id=personal_finance.add_transaction(tx_date.isoformat(),description,amount,typ,category,int(opts[account]),payment,ref,notes)
+                    controls.record_create(tx_id)
+                    st.success("Transaction saved and audit record created."); st.rerun()
                 except ValueError as exc: st.error(str(exc))
         tx=personal_finance.transactions(start_s,end_s)
-        if tx.empty: st.info("No transactions for the selected period.")
-        else: st.dataframe(tx[["id","transaction_date","transaction_type","category","classification","description","amount","account_name","payment_method","reference"]],use_container_width=True,hide_index=True)
+        if tx.empty:
+            st.info("No transactions for the selected period.")
+        else:
+            st.dataframe(tx[["id","transaction_date","transaction_type","category","classification","description","amount","account_name","payment_method","reference"]],use_container_width=True,hide_index=True)
+            st.divider()
+            st.subheader("Transaction Controls")
+            tx_ids=tx["id"].astype(int).tolist()
+            selected_id=st.selectbox("Select transaction",tx_ids,key="pf_control_id")
+            selected=tx.loc[tx["id"]==selected_id].iloc[0]
+            selected_type=str(selected["transaction_type"])
+            selected_categories=personal_finance.categories(selected_type).name.tolist() or [str(selected["category"])]
+            with st.form("pf_edit_tx"):
+                d1,d2=st.columns(2); edit_date=d1.date_input("Date",pd.to_datetime(selected["transaction_date"]).date(),key=f"pf_edit_date_{selected_id}"); edit_desc=d2.text_input("Description",str(selected["description"]),key=f"pf_edit_desc_{selected_id}")
+                a1,a2,a3=st.columns(3); edit_amount=a1.number_input(f"Amount ({symbol})",min_value=0.01,value=float(selected["amount"]),step=100.0,key=f"pf_edit_amount_{selected_id}"); edit_category=a2.selectbox("Category",selected_categories,index=selected_categories.index(str(selected["category"])) if str(selected["category"]) in selected_categories else 0,key=f"pf_edit_cat_{selected_id}"); account_names=list(opts); current_account=str(selected["account_name"]); account_index=account_names.index(current_account) if current_account in account_names else 0; edit_account=a3.selectbox("Account",account_names,index=account_index,key=f"pf_edit_account_{selected_id}")
+                edit_payment=st.text_input("Payment Method",str(selected["payment_method"] or ""),key=f"pf_edit_payment_{selected_id}"); edit_ref=st.text_input("Reference",str(selected["reference"] or ""),key=f"pf_edit_ref_{selected_id}"); edit_notes=st.text_area("Notes",str(selected["notes"] or ""),key=f"pf_edit_notes_{selected_id}")
+                if st.form_submit_button("Save Changes",type="primary"):
+                    try:
+                        controls.update_transaction(selected_id,transaction_date=edit_date.isoformat(),description=edit_desc,amount=edit_amount,transaction_type=selected_type,category=edit_category,account_id=int(opts[edit_account]),payment_method=edit_payment,reference=edit_ref,notes=edit_notes)
+                        st.success("Transaction amended and audit logged."); st.rerun()
+                    except ValueError as exc: st.error(str(exc))
+            d1,d2,d3=st.columns(3)
+            with d1:
+                if st.button("Delete Selected",key=f"pf_delete_{selected_id}",type="secondary"):
+                    try:
+                        controls.delete_transaction(selected_id,"User requested deletion")
+                        st.success("Transaction deleted and audit logged."); st.rerun()
+                    except ValueError as exc: st.error(str(exc))
+            with d2:
+                if st.button("Show Audit Trail",key=f"pf_audit_{selected_id}"):
+                    st.session_state["pf_show_audit"] = selected_id
+            if st.session_state.get("pf_show_audit")==selected_id:
+                audit=pd.DataFrame(controls.audit_log(selected_id))
+                if audit.empty: st.info("No audit records yet.")
+                else: st.dataframe(audit[["id","action","reason","created_at","before_json","after_json"]],use_container_width=True,hide_index=True)
 
     with tabs[2]:
         st.subheader("Double-Sided Account Transfers")
