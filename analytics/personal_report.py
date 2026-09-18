@@ -9,6 +9,7 @@ from services import personal_net_worth_history as nw_history
 from services import personal_debt_payments as debt_payments
 from services import personal_investment_history as investment_history
 from analytics import personal_allocation, personal_health, personal_data_quality
+from analytics import personal_scenarios
 
 
 def report_pack(start: str, end: str) -> dict:
@@ -34,6 +35,7 @@ def report_pack(start: str, end: str) -> dict:
         "debts": debts,
         "investments": investments,
         "monthly_statement": statement,
+        "scenarios": personal_scenarios.compare(end, 6),
         "status": "FACT/CALCULATION: report derived from recorded Personal Finance data and configured planning assumptions.",
     }
 
