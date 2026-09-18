@@ -13,6 +13,7 @@ STANDARD_ACCOUNTS = [
     ("1200", "Inventory", "Asset"),
     ("2000", "Accounts Payable", "Liability"),
     ("2100", "Tax Payable", "Liability"),
+    ("1150", "VAT Recoverable", "Asset"),
     ("3000", "Owner's Equity", "Equity"),
     ("3100", "Retained Earnings", "Equity"),
     ("4000", "Sales Revenue", "Revenue"),
