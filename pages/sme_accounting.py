@@ -87,7 +87,7 @@ def render() -> None:
         return
 
     labels = [f"{b['name']} · {b['currency']}" for b in businesses]
-    label = st.selectbox("Active business", labels, key="acct_business")
+    label = st.selectbox("Business", labels, key="acct_business", help="Choose the business whose accounting records you want to view.")
     business = businesses[labels.index(label)]
     business_id = int(business["id"])
     ensure_standard_accounts(business_id)
@@ -102,13 +102,18 @@ def render() -> None:
     c3.metric("Net Income", _money(pnl["Net Income"]))
     c4.metric("Balance Sheet", "BALANCED" if bs["Balanced"] else "OUT OF BALANCE")
 
-    st.caption(f"Period: {start:%d %b %Y} → {end:%d %b %Y}. Statements only use posted journals; no balances are fabricated.")
+    st.caption(f"Period: {start:%d %b %Y} → {end:%d %b %Y} • Only posted accounting entries are included.")
+    with st.expander("How to use this accounting workspace", expanded=False):
+        st.markdown("**1. Record or import transactions → 2. Review them → 3. Post eligible transactions → 4. Review the trial balance → 5. Use the financial statements.**")
+        st.caption("You do not need to understand double-entry accounting to use the main SME Finance workspace. Journal Entry and Accounts are available when you need deeper finance control.")
 
-    tabs = st.tabs(["Financial Statements", "Trial Balance", "Journal Entry", "Transaction Sync", "Chart of Accounts"])
+    tabs = st.tabs(["📊 Statements", "⚖️ Trial Balance", "🧾 Journal Entry", "🔄 Post Transactions", "📚 Accounts"])
     with tabs[0]:
         st.subheader("Profit & Loss")
+        st.caption("Revenue less expenses gives the net income for the selected period.")
         st.dataframe({"Line": ["Revenue", "Expenses", "Net Income"], "Amount": [_money(pnl["Revenue"]), _money(pnl["Expenses"]), _money(pnl["Net Income"])]}, use_container_width=True, hide_index=True)
         st.subheader("Balance Sheet")
+        st.caption("Shows what the business owns, owes and has invested as of the selected end date.")
         st.dataframe({"Line": ["Assets", "Liabilities", "Equity", "Liabilities + Equity"], "Amount": [_money(bs["Assets"]), _money(bs["Liabilities"]), _money(bs["Equity"]), _money(bs["Liabilities + Equity"])]}, use_container_width=True, hide_index=True)
         if not bs["Balanced"]:
             st.error("The balance sheet does not balance. Review posted journals before relying on the statement.")
@@ -133,7 +138,7 @@ def render() -> None:
         accounts = account_catalog(business_id)
         options = {f"{r['name']} ({r['account_type']})": int(r['id']) for _, r in accounts.iterrows()}
         names = list(options)
-        st.caption("A journal is posted only when total debits equal total credits.")
+        st.caption("Advanced accounting: use a journal when you need a controlled double-entry entry. Every posted journal must balance.")
         with st.form("manual_journal", clear_on_submit=True):
             jdate = st.date_input("Entry date", value=date.today())
             desc = st.text_input("Description")
