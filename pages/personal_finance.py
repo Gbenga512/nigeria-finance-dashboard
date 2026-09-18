@@ -14,6 +14,7 @@ from analytics import personal_allocation
 from analytics import personal_health
 from analytics import personal_data_quality
 from analytics import personal_report
+from analytics import personal_cashflow_forecast
 
 
 def money(v: float, symbol: str = "₦") -> str:
@@ -34,7 +35,7 @@ def render() -> None:
     for col,(label,value) in zip(cols,[("Total Income",m["income"]),("Total Expenses",m["expenses"]),("Net Savings",m["net_savings"]),("Savings / Investment",m["savings"]),("Net Worth",nw["net_worth"])]): col.metric(label,money(value,symbol))
     if m["savings_rate"] is not None: st.caption(f"Net savings rate: {m['savings_rate']:.1f}% • {m['transaction_count']} transactions")
 
-    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Data Quality","Reports","Settings"])
+    tabs=st.tabs(["Dashboard","Income & Expenses","Transfers","Budget","Statements","Net Worth","Net Worth History","Savings Goals","Debt","Investments","Financial Ratios","Health Intelligence","Data Quality","Reports","Cash-Flow Forecast","Settings"])
     with tabs[0]:
         st.subheader("Needs / Wants / Savings-Investment Allocation")
         allocation = personal_allocation.allocation_report(start_s, end_s)
@@ -360,6 +361,19 @@ def render() -> None:
         st.download_button("Download Personal Finance Report (TXT)",text_report,"personal_finance_report.txt","text/plain")
         st.download_button("Download Transactions (CSV)",personal_finance.transactions(start_s,end_s).to_csv(index=False),"personal_finance_transactions.csv","text/csv")
         st.caption(pack["status"])
+
+    with tabs[14]:
+        st.subheader("Forward Cash-Flow Forecast")
+        months = st.slider("Forecast horizon (months)", 3, 12, 6, key="pf_forecast_months")
+        if st.button("Generate Forecast", type="primary"):
+            forecast = personal_cashflow_forecast.forecast(end_s, months)
+            st.dataframe(forecast, use_container_width=True, hide_index=True)
+            if not forecast.empty:
+                st.metric("Forecast Closing Cash", money(forecast.iloc[-1]["Closing Cash"], symbol))
+                st.line_chart(forecast.set_index("Month")[["Opening Cash","Closing Cash"]])
+            st.caption("ESTIMATE: forecast combines recorded liquid cash, historical same-month patterns and active recurring rules. It is a planning scenario, not a guaranteed cash position.")
+        else:
+            st.info("Generate a forward cash-flow scenario from the selected period end.")
 
     with tabs[14]:
         st.subheader("Settings & Assumptions"); currencies=["NGN","USD","GBP","EUR"]; currency=st.selectbox("Base Currency",currencies,index=currencies.index(s["currency"]) if s["currency"] in currencies else 0); symbol_map={"NGN":"₦","USD":"$","GBP":"£","EUR":"€"}; fy=st.number_input("Fiscal Year",2000,2100,int(s["fiscal_year"])); opening=st.number_input("Opening Cash Balance",min_value=0.0,value=float(s["opening_cash"])); n=st.number_input("Needs Target (%)",0.0,1.0,float(s["needs_target"])); w=st.number_input("Wants Target (%)",0.0,1.0,float(s["wants_target"])); sv=st.number_input("Savings/Investment Target (%)",0.0,1.0,float(s["savings_target"])); dr=st.number_input("Debt Ratio Target (%)",0.0,1.0,float(s["debt_ratio_target"])); em=st.number_input("Emergency Fund Target (months)",0.0,24.0,float(s["emergency_months_target"]))
