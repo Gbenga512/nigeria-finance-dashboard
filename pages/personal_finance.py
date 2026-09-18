@@ -9,6 +9,7 @@ from services import personal_finance_intelligence as pfi
 from services import personal_finance_wealth as wealth
 from services import personal_net_worth_history as nw_history
 from services import personal_debt_payments as debt_payments
+from services import personal_investment_history as investment_history
 from analytics import personal_allocation
 
 
@@ -264,9 +265,43 @@ def render() -> None:
                 try: wealth.add_investment(name,asset_class,cost,value,units,asof.isoformat(),notes); st.success("Investment recorded."); st.rerun()
                 except ValueError as exc: st.error(str(exc))
         inv=wealth.investments(end_s)
-        if inv.empty: st.info("No investments recorded.")
+        if inv.empty:
+            st.info("No investments recorded.")
         else:
-            inv=inv.copy(); inv["gain_loss"]=inv["current_value"]-inv["cost_basis"]; inv["return_pct"]=inv.apply(lambda r:r["gain_loss"]/r["cost_basis"]*100 if r["cost_basis"] else None,axis=1); st.dataframe(inv[["name","asset_class","cost_basis","current_value","gain_loss","return_pct","units","as_of_date"]],use_container_width=True,hide_index=True)
+            inv=inv.copy()
+            inv["gain_loss"]=inv["current_value"]-inv["cost_basis"]
+            inv["return_pct"]=inv.apply(lambda r:r["gain_loss"]/r["cost_basis"]*100 if r["cost_basis"] else None,axis=1)
+            st.dataframe(inv[["name","asset_class","cost_basis","current_value","gain_loss","return_pct","units","as_of_date"]],use_container_width=True,hide_index=True)
+            st.divider()
+            st.subheader("Investment Valuation History")
+            st.caption("Record valuation points to preserve an auditable performance history. Current value remains the latest recorded valuation.")
+            investment_history.ensure_schema()
+            inv_map={f"{r['name']} (ID {int(r['id'])})":int(r['id']) for _,r in inv.iterrows()}
+            with st.form("pf_investment_valuation"):
+                selected_inv=st.selectbox("Investment",list(inv_map))
+                valuation_date=st.date_input("Valuation date",today,key="pf_valuation_date")
+                current_value=st.number_input(f"Current value ({symbol})",min_value=0.0,step=1000.0)
+                units_value=st.number_input("Units",min_value=0.0,step=1.0)
+                note=st.text_input("Valuation note")
+                if st.form_submit_button("Record Valuation",type="primary"):
+                    try:
+                        investment_history.record_valuation(inv_map[selected_inv],valuation_date.isoformat(),current_value,units_value,note)
+                        st.success("Investment valuation recorded.")
+                        st.rerun()
+                    except ValueError as exc:
+                        st.error(str(exc))
+            perf=investment_history.performance_summary(end_s)
+            if not perf.empty:
+                st.subheader("Performance Summary")
+                st.dataframe(perf[["name","asset_class","cost_basis","current_value","gain_loss","return_pct","first_valuation","latest_valuation","observations"]],use_container_width=True,hide_index=True)
+            portfolio=investment_history.portfolio_history(end_s)
+            if not portfolio.empty:
+                st.plotly_chart(px.line(portfolio,x="valuation_date",y="portfolio_value",title="Portfolio Valuation Trend"),use_container_width=True)
+            vh=investment_history.valuation_history(end=end_s)
+            if not vh.empty:
+                st.dataframe(vh[["valuation_date","name","asset_class","current_value","units","note"]],use_container_width=True,hide_index=True)
+                st.download_button("Export Investment Valuation History CSV",vh.to_csv(index=False),"personal_investment_valuation_history.csv","text/csv")
+            st.caption("FACT/CALCULATION: gain/loss is current value less recorded cost basis; return is gain/loss divided by cost basis. Historical valuation points are user-recorded observations, not market-price estimates.")
 
     with tabs[10]:
         st.subheader("Financial Ratios & KPIs"); ratios=personal_finance.financial_ratios(start_s,end_s); target={"Savings Rate":s["savings_target"],"Expense-to-Income Ratio":1-s["savings_target"],"Needs Ratio":s["needs_target"],"Wants Ratio":s["wants_target"],"Savings/Investment Ratio":s["savings_target"],"Debt Repayment Ratio":s["debt_ratio_target"],"Emergency Fund Coverage (months)":s["emergency_months_target"]}; coverage=wealth.emergency_coverage(start_s,end_s); ratios["Emergency Fund Coverage (months)"]=coverage["essential_months"]; ratios["Net Worth"]=nw["net_worth"]; rows=[]
